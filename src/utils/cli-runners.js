@@ -791,8 +791,9 @@ function waitForChildExit(proc, timeoutMs = 1500) {
             resolve();
         };
         proc.once('close', finish);
+        // Keep this timer referenced: the child is unref'd in terminateChildProcess, so an unref'd
+        // timer would let the event loop end (and the awaiting caller hang) on newer Node versions.
         const timer = setTimeout(finish, timeoutMs);
-        timer.unref?.();
     });
 }
 
