@@ -221,6 +221,10 @@ async function checkCliStatus(paths = {}) {
     return result.success ? result.data : null;
 }
 
+async function launchCliSetup(options = {}) {
+    return ipcRenderer.invoke('cli:launch-setup', options);
+}
+
 async function listCliModels(options = {}) {
     const result = await ipcRenderer.invoke('cli:list-models', options);
     return result.success ? result.data : null;
@@ -1225,6 +1229,7 @@ const cheatingDaddy = {
     initializeCli,
     cancelCliInitialization,
     checkCliStatus,
+    launchCliSetup,
     listCliModels,
     switchCliProvider,
     suggestCliContinuation,

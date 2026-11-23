@@ -9,18 +9,35 @@ Real-time transparent desktop assistant for interviews, meetings, presentations,
 
 ## Quick Start
 
+### Option 1: Windows Installer / Portable ZIP (Recommended — No Node.js or Git needed)
+
+1. Download **`Cheating-Daddy-Setup.exe`** (installer) or **`Cheating Daddy-win32-x64-*.zip`** (portable) from the repository's [**Releases**](https://github.com/Jenakonda/cheating-daddy-Modify/releases) page.
+2. Run the installer (or extract the ZIP and run `Cheating Daddy.exe`).
+    - _First-launch Windows SmartScreen note:_ for unsigned builds, click **More info** -> **Run anyway** once.
+3. On Home, under **CLI Availability**, click **`Install & Sign In`** on the **Gemini (`agy`)** or **Claude CLI** card to install the CLI and sign in with your Google / Anthropic subscription in one click (no manual console commands needed).
+
+### Option 2: Run from Source (Developers)
+
 1. **Install prerequisites**: [Node.js](https://nodejs.org/) (v20+) and at least one CLI subscription if using CLI mode:
-    - **Claude Code CLI (Claude Pro / Max)**: `npm install -g @anthropic-ai/claude-code` then run `claude` once to sign in.
-    - **Google Antigravity CLI `agy` (Google AI Pro / Ultra)** _(or legacy `gemini` CLI)_: install and run `agy` once to sign in with Google.
+    - **Google Antigravity CLI `agy` (Google AI Pro / Ultra)**:
+        - Windows (PowerShell): `irm https://antigravity.google/cli/install.ps1 | iex`
+        - Windows (CMD): `curl -fsSL https://antigravity.google/cli/install.cmd -o install.cmd && install.cmd && del install.cmd`
+        - macOS / Linux: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
+        - Verify with `agy --version`, then run `agy` once to sign in with Google.
+    - **Claude Code CLI (Claude Pro / Max)**:
+        - Windows (PowerShell): `irm https://claude.ai/install.ps1 | iex`
+        - Or via npm: `npm install -g @anthropic-ai/claude-code`, then run `claude` once to sign in.
 2. **Clone & install dependencies**:
     ```bash
     git clone https://github.com/Jenakonda/cheating-daddy-Modify.git
     cd cheating-daddy-Modify
     npm install
     ```
-3. **Launch the app**:
-    - **Console-less launch (recommended)**: `npm start` (or double-click `Start-Silent.vbs` on Windows).
+    > **Note for npm 11+ (`allowScripts`):** if launching fails with `Electron binary not found`, run `node node_modules/electron/install.js` once to download `electron.exe`.
+3. **Launch or package**:
+    - **Console-less launch (recommended)**: `npm start` (or double-click `Start-Silent.vbs` on Windows)
     - **Development launch with terminal logs**: `npm run start:dev`
+    - **Build Windows installer + portable ZIP locally**: `npm run make`
     - **Run automated tests**: `npm test`
 
 ---

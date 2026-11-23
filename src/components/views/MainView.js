@@ -1000,6 +1000,14 @@ export class MainView extends LitElement {
             border-radius: var(--radius-sm);
             color: var(--text-primary);
             display: block;
+            user-select: text;
+        }
+
+        .help-actions-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 4px;
         }
 
         .help-link {
@@ -1157,6 +1165,85 @@ export class MainView extends LitElement {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .cli-card-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 6px;
+            flex-wrap: wrap;
+        }
+
+        .cli-setup-btn {
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                background var(--transition),
+                color var(--transition);
+        }
+
+        .cli-setup-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            background: var(--bg-hover);
+        }
+
+        .cli-setup-btn:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        .cli-setup-btn.primary {
+            border-color: rgba(59, 130, 246, 0.55);
+            background: rgba(59, 130, 246, 0.16);
+            color: #bfdbfe;
+        }
+
+        .cli-setup-btn.primary:hover:not(:disabled) {
+            border-color: rgba(96, 165, 250, 0.8);
+            background: rgba(59, 130, 246, 0.28);
+            color: #eff6ff;
+        }
+
+        .cli-setup-btn.warn {
+            border-color: rgba(212, 160, 23, 0.55);
+            background: rgba(212, 160, 23, 0.14);
+            color: #fde68a;
+        }
+
+        .cli-setup-btn.warn:hover:not(:disabled) {
+            border-color: rgba(234, 179, 8, 0.8);
+            background: rgba(212, 160, 23, 0.24);
+            color: #fef3c7;
+        }
+
+        .cli-setup-btn.subtle {
+            color: var(--text-secondary);
+            background: transparent;
+        }
+
+        .cli-setup-btn.subtle:hover:not(:disabled) {
+            color: var(--text-primary);
+            background: var(--bg-elevated);
+        }
+
+        .cli-setup-notice {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            background: rgba(59, 130, 246, 0.08);
+            color: var(--text-secondary);
+            font-size: 11px;
+            line-height: 1.4;
         }
 
         .cli-error-banner {
@@ -1372,6 +1459,8 @@ export class MainView extends LitElement {
         _contextFolderNotice: { state: true },
         _cliStatus: { state: true },
         _checkingCliStatus: { state: true },
+        _launchingCliSetup: { state: true },
+        _cliSetupNotice: { state: true },
         _showCliHelp: { state: true },
         _cliError: { state: true },
     };
@@ -1428,6 +1517,9 @@ export class MainView extends LitElement {
         this._contextFolderNotice = '';
         this._cliStatus = null;
         this._checkingCliStatus = false;
+        this._launchingCliSetup = '';
+        this._cliSetupNotice = '';
+        this._pendingCliSetupRefresh = false;
         this._showCliHelp = false;
         this._cliError = '';
 
@@ -1437,6 +1529,7 @@ export class MainView extends LitElement {
         this._mouseY = -1;
 
         this.boundKeydownHandler = this._handleKeydown.bind(this);
+        this.boundFocusHandler = this._handleWindowFocus.bind(this);
         this._loadFromStorage();
     }
 
@@ -1520,12 +1613,65 @@ export class MainView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         document.addEventListener('keydown', this.boundKeydownHandler);
+        window.addEventListener('focus', this.boundFocusHandler);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('keydown', this.boundKeydownHandler);
+        window.removeEventListener('focus', this.boundFocusHandler);
         if (this._animId) cancelAnimationFrame(this._animId);
+    }
+
+    async _handleWindowFocus() {
+        if (!this._pendingCliSetupRefresh || this._mode !== 'cli') {
+            return;
+        }
+        this._pendingCliSetupRefresh = false;
+        await this._refreshCliStatus();
+        if (this._cliStatus?.gemini?.installed) {
+            this._refreshCliModels?.();
+        }
+    }
+
+    async _launchCliSetup(provider, action = 'install') {
+        if (!cheatingDaddy.launchCliSetup) return;
+        this._launchingCliSetup = provider;
+        this._cliError = '';
+        this.requestUpdate();
+
+        try {
+            const customPath = provider === 'claude' ? this._cliClaudePath : this._cliGeminiPath;
+            const res = await cheatingDaddy.launchCliSetup({ provider, action, customPath });
+            if (res?.success) {
+                this._pendingCliSetupRefresh = true;
+                this._cliSetupNotice =
+                    action === 'install'
+                        ? `Terminal opened for ${res.label}. Finish installation & browser sign-in there, then return here.`
+                        : `Terminal opened for ${res.label} sign-in. Complete login there, then return here.`;
+            } else {
+                this._cliError = res?.error || 'Failed to open CLI setup terminal.';
+            }
+        } catch (err) {
+            this._cliError = err?.message || 'Failed to open CLI setup terminal.';
+        } finally {
+            this._launchingCliSetup = '';
+            this.requestUpdate();
+        }
+    }
+
+    async _checkCliSetupStatus() {
+        this._pendingCliSetupRefresh = false;
+        await this._refreshCliStatus();
+        if (this._cliStatus?.gemini?.installed) {
+            await this._refreshCliModels?.();
+        }
+        const claudeReady = this._cliStatus?.claude?.installed && this._cliStatus?.claude?.authStatus !== 'unauthenticated';
+        const geminiReady = this._cliStatus?.gemini?.installed && this._cliStatus?.gemini?.authStatus !== 'unauthenticated';
+        if (claudeReady || geminiReady) {
+            this._cliSetupNotice = '';
+            this.requestUpdate();
+        }
     }
 
     updated(changedProperties) {
@@ -2432,6 +2578,38 @@ export class MainView extends LitElement {
         return { dotClass: 'ok', label: status.version ? `Installed · ${status.version}` : 'Installed' };
     }
 
+    _renderCliCardAction(provider, status) {
+        if (!status) {
+            return '';
+        }
+        const busy = this._launchingCliSetup === provider;
+        if (!status.installed) {
+            return html`
+                <div class="cli-card-actions">
+                    <button type="button" class="cli-setup-btn primary" ?disabled=${busy} @click=${() => this._launchCliSetup(provider, 'install')}>
+                        ${busy ? 'Opening...' : 'Install & Sign In'}
+                    </button>
+                </div>
+            `;
+        }
+        if (status.authStatus === 'unauthenticated') {
+            return html`
+                <div class="cli-card-actions">
+                    <button type="button" class="cli-setup-btn warn" ?disabled=${busy} @click=${() => this._launchCliSetup(provider, 'login')}>
+                        ${busy ? 'Opening...' : 'Sign In'}
+                    </button>
+                </div>
+            `;
+        }
+        return html`
+            <div class="cli-card-actions">
+                <button type="button" class="cli-setup-btn subtle" ?disabled=${busy} @click=${() => this._launchCliSetup(provider, 'login')}>
+                    ${busy ? 'Opening...' : 'Re-login'}
+                </button>
+            </div>
+        `;
+    }
+
     _renderCliStatusBar() {
         const claudeStatus = this._cliStatus?.claude || null;
         const geminiStatus = this._cliStatus?.gemini || null;
@@ -2453,6 +2631,7 @@ export class MainView extends LitElement {
                             <span class="cli-status-name">Claude CLI</span>
                         </div>
                         <div class="cli-status-meta" title=${claudeStatus?.resolvedPath || claudeBadge.label}>${claudeBadge.label}</div>
+                        ${this._renderCliCardAction('claude', claudeStatus)}
                     </div>
                     <div class="cli-status-card ${this._cliPrimaryProvider === 'gemini' ? 'active-primary' : ''}">
                         <div class="cli-status-title-row">
@@ -2460,8 +2639,26 @@ export class MainView extends LitElement {
                             <span class="cli-status-name">${geminiStatus?.engine === 'agy' ? 'Gemini (agy)' : 'Gemini CLI'}</span>
                         </div>
                         <div class="cli-status-meta" title=${geminiStatus?.resolvedPath || geminiBadge.label}>${geminiBadge.label}</div>
+                        ${this._renderCliCardAction('gemini', geminiStatus)}
                     </div>
                 </div>
+                ${
+                    this._cliSetupNotice
+                        ? html`
+                              <div class="cli-setup-notice">
+                                  <span>${this._cliSetupNotice}</span>
+                                  <button
+                                      type="button"
+                                      class="cli-setup-btn subtle"
+                                      ?disabled=${this._checkingCliStatus}
+                                      @click=${() => this._checkCliSetupStatus()}
+                                  >
+                                      Check status
+                                  </button>
+                              </div>
+                          `
+                        : ''
+                }
             </div>
         `;
     }
@@ -3023,18 +3220,38 @@ export class MainView extends LitElement {
                     <div class="help-content">
                         <div class="help-section">
                             <div class="help-section-title">1. Claude Code CLI (Claude Pro / Max)</div>
-                            <div class="help-section-text">Install in PowerShell (Windows) or via npm, then run once to sign in:</div>
+                            <div class="help-section-text">Install automatically with the button below (or via PowerShell / npm) and sign in:</div>
                             <code class="help-code">irm https://claude.ai/install.ps1 | iex</code>
                             <code class="help-code">npm install -g @anthropic-ai/claude-code && claude</code>
+                            <div class="help-actions-row">
+                                <button
+                                    type="button"
+                                    class="cli-setup-btn primary"
+                                    ?disabled=${this._launchingCliSetup === 'claude'}
+                                    @click=${() => this._launchCliSetup('claude', 'install')}
+                                >
+                                    ${this._launchingCliSetup === 'claude' ? 'Opening...' : 'Install & Sign In (Claude)'}
+                                </button>
+                            </div>
                         </div>
 
                         <div class="help-section">
                             <div class="help-section-title">2. Google Antigravity CLI — agy (Google AI Pro)</div>
                             <div class="help-section-text">
-                                Install in PowerShell (Windows), then run once to sign in with your Google AI Pro account:
+                                Install automatically with the button below (or via PowerShell), then sign in with your Google AI Pro account:
                             </div>
                             <code class="help-code">irm https://antigravity.google/cli/install.ps1 | iex</code>
                             <code class="help-code">agy</code>
+                            <div class="help-actions-row">
+                                <button
+                                    type="button"
+                                    class="cli-setup-btn primary"
+                                    ?disabled=${this._launchingCliSetup === 'gemini'}
+                                    @click=${() => this._launchCliSetup('gemini', 'install')}
+                                >
+                                    ${this._launchingCliSetup === 'gemini' ? 'Opening...' : 'Install & Sign In (agy)'}
+                                </button>
+                            </div>
                         </div>
 
                         <div class="help-section">

@@ -1,0 +1,54 @@
+name: Build & Release Windows App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure Electron and winstaller binaries are ready
+        run: |
+          node node_modules/electron/install.js
+          node node_modules/electron-winstaller/script/select-7z-arch.js
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Build Windows installer and portable ZIP
+        run: npm run make
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cheating-daddy-windows
+          path: |
+            out/make/squirrel.windows/x64/Cheating-Daddy-Setup.exe
+            out/make/zip/win32/x64/*.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            out/make/squirrel.windows/x64/Cheating-Daddy-Setup.exe
+            out/make/zip/win32/x64/*.zip

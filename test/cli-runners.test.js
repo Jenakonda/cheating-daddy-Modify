@@ -9,8 +9,11 @@ const {
     ClaudeCliRunner,
     GeminiCliRunner,
     buildCliEnv,
+    buildCliSetupLaunchSpec,
+    buildCliSetupScript,
     classifyCliError,
     isAgyBinary,
+    launchCliSetup,
     normalizeAgyModel,
     normalizeClaudeEffort,
     parseAgyModelsOutput,
@@ -927,4 +930,80 @@ test('createCliSessionManager forwards responseLanguage to getSystemPrompt', asy
         await manager?.closeCliSessionAsync();
         fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 6, retryDelay: 50 });
     }
+});
+
+test('buildCliSetupScript builds clean install and login scripts for agy and claude', () => {
+    const agyWinInstall = buildCliSetupScript({ provider: 'gemini', action: 'install', platform: 'win32' });
+    assert.ok(agyWinInstall.includes('irm https://antigravity.google/cli/install.ps1 | iex'));
+    assert.ok(agyWinInstall.includes('Remove-Item Env:GEMINI_API_KEY'));
+    assert.ok(agyWinInstall.includes('Remove-Item Env:GOOGLE_API_KEY'));
+    assert.ok(agyWinInstall.includes("[System.Environment]::GetEnvironmentVariable('Path', 'Machine')"));
+    assert.ok(agyWinInstall.includes("[System.Environment]::GetEnvironmentVariable('Path', 'User')"));
+    assert.ok(agyWinInstall.includes('& agy'));
+
+    const agyDarwinInstall = buildCliSetupScript({ provider: 'gemini', action: 'install', platform: 'darwin' });
+    assert.ok(agyDarwinInstall.includes('curl -fsSL https://antigravity.google/cli/install.sh | bash'));
+    assert.ok(agyDarwinInstall.includes('unset ANTHROPIC_API_KEY'));
+    assert.ok(agyDarwinInstall.includes('agy'));
+
+    const agyWinLoginEscaped = buildCliSetupScript({
+        provider: 'gemini',
+        action: 'login',
+        resolvedPath: "C:\\Users\\O'Brien\\AppData\\Local\\agy\\bin\\agy.exe",
+        platform: 'win32',
+    });
+    assert.ok(agyWinLoginEscaped.includes("& 'C:\\Users\\O''Brien\\AppData\\Local\\agy\\bin\\agy.exe'"));
+
+    const claudeWinInstall = buildCliSetupScript({ provider: 'claude', action: 'install', platform: 'win32' });
+    assert.ok(claudeWinInstall.includes('irm https://claude.ai/install.ps1 | iex'));
+    assert.ok(claudeWinInstall.includes('Remove-Item Env:ANTHROPIC_API_KEY'));
+    assert.ok(claudeWinInstall.includes('& claude'));
+});
+
+test('buildCliSetupLaunchSpec encodes win32 PowerShell Start-Process command and validates inputs', () => {
+    const spec = buildCliSetupLaunchSpec({ provider: 'gemini', action: 'install', platform: 'win32' });
+    assert.equal(spec.platform, 'win32');
+    assert.equal(spec.spawnOptions.windowsHide, true);
+    assert.notEqual(spec.spawnOptions.detached, true);
+
+    const commandArg = spec.args[spec.args.length - 1];
+    assert.ok(commandArg.includes('Start-Process'));
+    assert.ok(commandArg.includes(`'${spec.encodedScript}'`));
+
+    const decoded = Buffer.from(spec.encodedScript, 'base64').toString('utf16le');
+    assert.equal(decoded, spec.script);
+
+    assert.throws(() => buildCliSetupLaunchSpec({ provider: 'invalid', action: 'install', platform: 'win32' }), /Invalid CLI provider/);
+    assert.throws(() => buildCliSetupLaunchSpec({ provider: 'claude', action: 'rm', platform: 'win32' }), /Invalid CLI setup action/);
+    assert.throws(
+        () => buildCliSetupLaunchSpec({ provider: 'claude', action: 'login', customPath: 'C:\\bad.exe & calc', platform: 'win32' }),
+        /Invalid custom executable path/
+    );
+});
+
+test('launchCliSetup invokes spawnFn with generated spec without launching real processes', () => {
+    const calls = [];
+    let unrefCalled = false;
+    const mockSpawn = (command, args, options) => {
+        calls.push({ command, args, options });
+        return {
+            on() {},
+            unref() {
+                unrefCalled = true;
+            },
+        };
+    };
+
+    const res = launchCliSetup({ provider: 'gemini', action: 'install', platform: 'win32', spawnFn: mockSpawn });
+    assert.equal(res.success, true);
+    assert.equal(res.provider, 'gemini');
+    assert.equal(res.action, 'install');
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].command.toLowerCase().includes('powershell.exe'));
+    assert.equal(calls[0].options.windowsHide, true);
+    assert.equal(unrefCalled, true);
+
+    const invalidRes = launchCliSetup({ provider: 'unknown', action: 'install', platform: 'win32', spawnFn: mockSpawn });
+    assert.equal(invalidRes.success, false);
+    assert.match(invalidRes.error, /Invalid CLI provider/);
 });

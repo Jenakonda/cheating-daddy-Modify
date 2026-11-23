@@ -9,6 +9,7 @@ const CLI_INSTALL_HINTS = {
         label: 'Claude Code CLI',
         subscription: 'Claude Pro / Max',
         installWin: 'irm https://claude.ai/install.ps1 | iex',
+        installUnix: 'curl -fsSL https://claude.ai/install.sh | bash',
         installNpm: 'npm install -g @anthropic-ai/claude-code',
         loginCommand: 'claude',
         loginHint: 'Run `claude` in terminal and sign in with your Claude Pro account.',
@@ -17,6 +18,7 @@ const CLI_INSTALL_HINTS = {
         label: 'Google Antigravity CLI (agy)',
         subscription: 'Google AI Pro / Ultra',
         installWin: 'irm https://antigravity.google/cli/install.ps1 | iex',
+        installUnix: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
         installCmd: 'curl -fsSL https://antigravity.google/cli/install.cmd -o install.cmd && install.cmd && del install.cmd',
         installNpm: 'irm https://antigravity.google/cli/install.ps1 | iex',
         loginCommand: 'agy',
@@ -1778,6 +1780,228 @@ function createGoogleCliRunner(options) {
     return new GeminiCliRunner(options);
 }
 
+function escapePowerShellSingleQuoted(value) {
+    return String(value || '').replace(/'/g, "''");
+}
+
+function escapePosixSingleQuoted(value) {
+    return String(value || '').replace(/'/g, "'\\''");
+}
+
+function buildCliSetupScript({ provider, action = 'install', resolvedPath = '', platform = process.platform } = {}) {
+    if (provider !== 'claude' && provider !== 'gemini') {
+        throw new Error('Invalid CLI provider');
+    }
+    if (action !== 'install' && action !== 'login') {
+        throw new Error('Invalid CLI setup action');
+    }
+
+    const hint = CLI_INSTALL_HINTS[provider];
+    const safeResolved = typeof resolvedPath === 'string' && resolvedPath.trim() && isSafeCustomPath(resolvedPath.trim()) ? resolvedPath.trim() : '';
+
+    if (platform === 'win32') {
+        const windowTitle = escapePowerShellSingleQuoted(`Cheating Daddy — ${hint.label}`);
+        const envCleanup = [
+            'Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue',
+            'Remove-Item Env:ANTHROPIC_AUTH_TOKEN -ErrorAction SilentlyContinue',
+            'Remove-Item Env:GEMINI_API_KEY -ErrorAction SilentlyContinue',
+            'Remove-Item Env:GOOGLE_API_KEY -ErrorAction SilentlyContinue',
+        ];
+        const pathRefresh = [
+            "$machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')",
+            "$userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')",
+            '$extraDirs = @(',
+            "    (Join-Path $env:LOCALAPPDATA 'agy\\bin'),",
+            "    (Join-Path $env:USERPROFILE '.local\\bin'),",
+            "    (Join-Path $env:USERPROFILE '.claude\\local'),",
+            "    (Join-Path $env:APPDATA 'npm')",
+            ') | Where-Object { $_ -and (Test-Path $_) }',
+            "$env:Path = (($extraDirs + @($machinePath, $userPath, $env:Path)) | Where-Object { $_ }) -join ';'",
+        ];
+        const loginInvocation = action === 'login' && safeResolved ? `& '${escapePowerShellSingleQuoted(safeResolved)}'` : `& ${hint.loginCommand}`;
+
+        const lines = ["$ErrorActionPreference = 'Continue'", `try { $Host.UI.RawUI.WindowTitle = '${windowTitle}' } catch {}`, ...envCleanup];
+
+        if (action === 'install') {
+            lines.push(
+                `Write-Host '=== Installing ${escapePowerShellSingleQuoted(hint.label)} ===' -ForegroundColor Cyan`,
+                `try { ${hint.installWin} } catch { Write-Host "Install error: $_" -ForegroundColor Red; exit 1 }`,
+                ...pathRefresh,
+                "Write-Host ''",
+                "Write-Host 'Sign in via your browser, then close this window and return to Cheating Daddy.' -ForegroundColor Green",
+                loginInvocation
+            );
+        } else {
+            lines.push(
+                ...pathRefresh,
+                `Write-Host '=== Sign in to ${escapePowerShellSingleQuoted(hint.label)} ===' -ForegroundColor Cyan`,
+                "Write-Host 'Sign in via your browser, then close this window and return to Cheating Daddy.' -ForegroundColor Green",
+                loginInvocation
+            );
+        }
+
+        return lines.join('\n');
+    }
+
+    const posixLogin = action === 'login' && safeResolved ? `'${escapePosixSingleQuoted(safeResolved)}'` : hint.loginCommand;
+    const lines = ['unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN GEMINI_API_KEY GOOGLE_API_KEY'];
+
+    if (action === 'install') {
+        lines.push(
+            `echo "=== Installing ${hint.label} ==="`,
+            `${hint.installUnix}`,
+            'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"',
+            'echo "Sign in via your browser, then close this window and return to Cheating Daddy."',
+            posixLogin
+        );
+    } else {
+        lines.push(
+            'export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"',
+            `echo "=== Sign in to ${hint.label} ==="`,
+            'echo "Sign in via your browser, then close this window and return to Cheating Daddy."',
+            posixLogin
+        );
+    }
+
+    return lines.join('\n');
+}
+
+function findLinuxTerminalEmulator() {
+    const candidates = ['x-terminal-emulator', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm'];
+    for (const term of candidates) {
+        try {
+            const output = execFileSync('which', [term], {
+                encoding: 'utf8',
+                timeout: 1500,
+                windowsHide: true,
+                stdio: ['ignore', 'pipe', 'ignore'],
+            }).trim();
+            if (output) {
+                return term;
+            }
+        } catch {
+            // Try next candidate
+        }
+    }
+    return 'xterm';
+}
+
+function buildCliSetupLaunchSpec({ provider, action = 'install', customPath = '', platform = process.platform, resolvedPath = null } = {}) {
+    if (provider !== 'claude' && provider !== 'gemini') {
+        throw new Error('Invalid CLI provider');
+    }
+    if (action !== 'install' && action !== 'login') {
+        throw new Error('Invalid CLI setup action');
+    }
+
+    const trimmedCustom = typeof customPath === 'string' ? customPath.trim() : '';
+    if (trimmedCustom && !isSafeCustomPath(trimmedCustom)) {
+        throw new Error('Invalid custom executable path');
+    }
+
+    let effectiveResolvedPath = '';
+    if (typeof resolvedPath === 'string') {
+        if (resolvedPath.trim() && !isSafeCustomPath(resolvedPath.trim())) {
+            throw new Error('Invalid resolved executable path');
+        }
+        effectiveResolvedPath = resolvedPath.trim();
+    } else if (action === 'login') {
+        const resolved = resolveCliBinary(provider, trimmedCustom);
+        effectiveResolvedPath = resolved.found && resolved.path ? resolved.path : '';
+    }
+
+    const script = buildCliSetupScript({
+        provider,
+        action,
+        resolvedPath: effectiveResolvedPath,
+        platform,
+    });
+    const label = CLI_INSTALL_HINTS[provider].label;
+
+    if (platform === 'win32') {
+        const encoded = Buffer.from(script, 'utf16le').toString('base64');
+        const powershellExe = process.env.SystemRoot
+            ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+            : 'powershell.exe';
+        return {
+            platform: 'win32',
+            command: powershellExe,
+            args: [
+                '-NoProfile',
+                '-NonInteractive',
+                '-WindowStyle',
+                'Hidden',
+                '-Command',
+                `Start-Process -FilePath '${escapePowerShellSingleQuoted(powershellExe)}' -ArgumentList '-NoExit','-NoProfile','-ExecutionPolicy','Bypass','-EncodedCommand','${encoded}'`,
+            ],
+            spawnOptions: { windowsHide: true, stdio: 'ignore' },
+            script,
+            encodedScript: encoded,
+            label,
+        };
+    }
+
+    if (platform === 'darwin') {
+        return {
+            platform: 'darwin',
+            command: 'open',
+            args: [],
+            script,
+            label,
+            useCommandFile: true,
+            spawnOptions: { detached: true, stdio: 'ignore' },
+        };
+    }
+
+    const bashCommand = `${script}; echo; read -n 1 -s -r -p 'Press any key to close...'`;
+    const term = findLinuxTerminalEmulator();
+    const args = term === 'gnome-terminal' ? ['--', 'bash', '-lc', bashCommand] : ['-e', 'bash', '-lc', bashCommand];
+
+    return {
+        platform: 'linux',
+        command: term,
+        args,
+        script,
+        label,
+        spawnOptions: { detached: true, stdio: 'ignore' },
+    };
+}
+
+function launchCliSetup({ provider, action = 'install', customPath = '', platform = process.platform, spawnFn = spawn } = {}) {
+    try {
+        const spec = buildCliSetupLaunchSpec({ provider, action, customPath, platform });
+        let command = spec.command;
+        let args = spec.args;
+
+        if (spec.useCommandFile) {
+            const scriptFile = path.join(os.tmpdir(), `cd-cli-setup-${provider}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.command`);
+            fs.writeFileSync(scriptFile, `#!/bin/bash\n${spec.script}\n`, { mode: 0o700 });
+            args = [scriptFile];
+        }
+
+        const child = spawnFn(command, args, spec.spawnOptions);
+        if (child && typeof child.on === 'function') {
+            child.on('error', err => {
+                console.error(`Failed to launch CLI setup for ${provider}:`, err);
+            });
+        }
+        child?.unref?.();
+
+        return {
+            success: true,
+            provider,
+            action,
+            label: spec.label,
+            message: `Opened setup terminal for ${spec.label}.`,
+        };
+    } catch (error) {
+        return {
+            success: false,
+            error: error?.message || 'Failed to launch CLI setup',
+        };
+    }
+}
+
 module.exports = {
     CLI_INSTALL_HINTS,
     VALID_CLAUDE_EFFORTS,
@@ -1803,4 +2027,7 @@ module.exports = {
     parseClaudeStreamLine,
     parseGeminiStreamLine,
     parseAgyStreamLine,
+    buildCliSetupScript,
+    buildCliSetupLaunchSpec,
+    launchCliSetup,
 };

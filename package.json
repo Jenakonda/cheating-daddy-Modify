@@ -1,7 +1,7 @@
 {
     "name": "cheating-daddy",
     "productName": "cheating-daddy",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "description": "cheating daddy",
     "main": "src/index.js",
     "scripts": {
@@ -43,5 +43,8 @@
         "@electron/fuses": "^1.8.0",
         "@reforged/maker-appimage": "^5.0.0",
         "electron": "^30.0.5"
+    },
+    "overrides": {
+        "@electron/node-gyp": "10.2.0-electron.2"
     }
 }

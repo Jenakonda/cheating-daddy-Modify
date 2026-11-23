@@ -5,6 +5,7 @@ module.exports = {
     packagerConfig: {
         asar: true,
         extraResource: ['./src/assets/SystemAudioDump'],
+        ignore: [/^\/test(\/|$)/, /^\/scripts(\/|$)/, /^\/\.github(\/|$)/, /^\/Start-Silent\.vbs$/],
         name: 'Cheating Daddy',
         icon: 'src/assets/logo',
         // use `security find-identity -v -p codesigning` to find your identity
@@ -30,12 +31,18 @@ module.exports = {
         {
             name: '@electron-forge/maker-squirrel',
             config: {
-                name: 'cheating-daddy',
+                name: 'cheating_daddy',
                 productName: 'Cheating Daddy',
                 shortcutName: 'Cheating Daddy',
+                setupExe: 'Cheating-Daddy-Setup.exe',
+                setupIcon: 'src/assets/logo.ico',
                 createDesktopShortcut: true,
                 createStartMenuShortcut: true,
             },
+        },
+        {
+            name: '@electron-forge/maker-zip',
+            platforms: ['win32', 'darwin'],
         },
         {
             name: '@electron-forge/maker-dmg',

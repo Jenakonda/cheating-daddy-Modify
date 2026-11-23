@@ -1163,6 +1163,29 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         }
     });
 
+    ipcMain.handle('cli:launch-setup', async (event, options) => {
+        try {
+            const safeOpts = options && typeof options === 'object' ? options : {};
+            const provider = safeOpts.provider;
+            if (provider !== 'claude' && provider !== 'gemini') {
+                return { success: false, error: 'Invalid CLI provider' };
+            }
+            const action = safeOpts.action === undefined ? 'install' : safeOpts.action;
+            if (action !== 'install' && action !== 'login') {
+                return { success: false, error: 'Invalid CLI setup action' };
+            }
+            const customPath = typeof safeOpts.customPath === 'string' ? safeOpts.customPath.trim() : '';
+            const { isSafeCustomPath, launchCliSetup } = require('./cli-runners');
+            if (customPath && !isSafeCustomPath(customPath)) {
+                return { success: false, error: 'Invalid custom CLI path' };
+            }
+            return launchCliSetup({ provider, action, customPath });
+        } catch (error) {
+            console.error('Error launching CLI setup:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     ipcMain.handle('cli:list-models', async (event, options) => {
         try {
             const safeOpts = options && typeof options === 'object' ? options : {};
