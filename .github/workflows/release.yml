@@ -25,10 +25,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Ensure Electron and winstaller binaries are ready
-        run: |
-          node node_modules/electron/install.js
-          node node_modules/electron-winstaller/script/select-7z-arch.js
+      - name: Ensure Electron binary is ready
+        run: node node_modules/electron/install.js
+
+      - name: Ensure 7-Zip for winstaller is selected
+        working-directory: node_modules/electron-winstaller
+        run: node script/select-7z-arch.js
 
       - name: Run automated tests
         run: npm test
