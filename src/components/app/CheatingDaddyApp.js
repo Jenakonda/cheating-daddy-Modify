@@ -35,7 +35,7 @@ export class CheatingDaddyApp extends LitElement {
             height: calc(100vh - 2px);
             margin: 1px;
             overflow: hidden;
-            border: 2px solid rgba(255, 255, 255, 0.18);
+            border: 1px solid var(--border-strong);
             border-radius: 11px;
         }
 
@@ -61,49 +61,54 @@ export class CheatingDaddyApp extends LitElement {
             display: none;
         }
 
-        .traffic-lights {
+        .window-controls {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 0 var(--space-md);
+            gap: 2px;
+            padding: 0 var(--space-sm);
             height: 100%;
             -webkit-app-region: no-drag;
         }
 
-        .traffic-light {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        .wc-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 26px;
             border: none;
+            border-radius: var(--radius-sm);
+            background: transparent;
+            color: var(--text-muted);
             cursor: pointer;
-            padding: 0;
-            transition: opacity 0.15s ease;
+            transition:
+                background var(--transition),
+                color var(--transition);
         }
 
-        .traffic-light:hover {
-            opacity: 0.8;
+        .wc-btn svg {
+            width: 14px;
+            height: 14px;
         }
 
-        .traffic-light.close {
-            background: #ff5f57;
+        .wc-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
         }
 
-        .traffic-light.minimize {
-            background: #febc2e;
-        }
-
-        .traffic-light.maximize {
-            background: #28c840;
+        .wc-btn.close:hover {
+            background: var(--danger);
+            color: #ffffff;
         }
 
         .sidebar {
             width: var(--sidebar-width);
             min-width: var(--sidebar-width);
-            background: var(--bg-surface);
+            background: var(--bg-app);
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
-            padding: 42px 0 var(--space-md) 0;
+            padding: var(--space-md) 0 var(--space-md) 0;
             transition:
                 width var(--transition),
                 min-width var(--transition),
@@ -120,14 +125,33 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .sidebar-brand {
-            padding: var(--space-sm) var(--space-lg);
-            padding-top: var(--space-md);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 var(--space-md);
             margin-bottom: var(--space-lg);
+            height: 28px;
+        }
+
+        .brand-mark {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            border-radius: var(--radius-md);
+            background: var(--accent-soft);
+            color: var(--accent);
+        }
+
+        .brand-mark svg {
+            width: 15px;
+            height: 15px;
         }
 
         .sidebar-brand h1 {
-            font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-medium);
             color: var(--text-primary);
             letter-spacing: -0.01em;
         }
@@ -145,11 +169,11 @@ export class CheatingDaddyApp extends LitElement {
             display: flex;
             align-items: center;
             gap: var(--space-sm);
-            padding: var(--space-sm) var(--space-md);
+            padding: 8px var(--space-md);
             border-radius: var(--radius-md);
             color: var(--text-secondary);
             font-size: var(--font-size-sm);
-            font-weight: var(--font-weight-medium);
+            font-weight: var(--font-weight-normal);
             cursor: pointer;
             transition:
                 color var(--transition),
@@ -170,9 +194,13 @@ export class CheatingDaddyApp extends LitElement {
             background: var(--bg-elevated);
         }
 
+        .nav-item.active svg {
+            color: var(--accent);
+        }
+
         .nav-item svg {
-            width: 20px;
-            height: 20px;
+            width: 18px;
+            height: 18px;
             flex-shrink: 0;
         }
 
@@ -258,9 +286,9 @@ export class CheatingDaddyApp extends LitElement {
             justify-content: space-between;
             flex-shrink: 0;
             padding: 0 var(--space-md);
-            background: var(--bg-surface);
+            background: var(--bg-app);
             border-bottom: 1px solid var(--border);
-            height: 36px;
+            height: 40px;
             -webkit-app-region: drag;
         }
 
@@ -294,20 +322,24 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .live-bar-center {
-            position: absolute;
-            left: 50%;
-            transform: translateX(-50%);
+            flex: 1;
+            min-width: 0;
+            padding: 0 var(--space-md);
+            text-align: center;
             font-size: var(--font-size-xs);
             color: var(--text-muted);
             font-weight: var(--font-weight-medium);
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
             pointer-events: none;
         }
 
         .live-bar-right {
             display: flex;
             align-items: center;
-            gap: var(--space-md);
+            flex-shrink: 0;
+            gap: var(--space-sm);
             -webkit-app-region: no-drag;
             z-index: 1;
         }
@@ -319,13 +351,33 @@ export class CheatingDaddyApp extends LitElement {
             white-space: nowrap;
         }
 
+        .live-bar-text.status {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .live-bar-text.clickable {
             cursor: pointer;
-            transition: color var(--transition);
+            padding: 2px 8px;
+            border-radius: var(--radius-sm);
+            font-family: var(--font);
+            transition:
+                color var(--transition),
+                background var(--transition);
         }
 
         .live-bar-text.clickable:hover {
             color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .live-bar-text.badge {
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+            font-family: var(--font);
         }
 
         .provider-pill {
@@ -363,8 +415,8 @@ export class CheatingDaddyApp extends LitElement {
             gap: 4px;
             padding: 2px 8px;
             border-radius: 999px;
-            border: 1px solid rgba(59, 130, 246, 0.45);
-            background: rgba(59, 130, 246, 0.14);
+            border: 1px solid var(--accent);
+            background: var(--accent-soft);
             color: var(--text-primary);
             font-size: var(--font-size-xs);
             font-family: var(--font-mono);
@@ -375,8 +427,8 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .continue-pill:hover {
-            border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.25);
+            border-color: var(--accent-hover);
+            background: rgba(139, 156, 255, 0.25);
         }
 
         /* Content inner */
@@ -981,6 +1033,19 @@ export class CheatingDaddyApp extends LitElement {
         return html`
             <div class="sidebar ${this._isLiveMode() ? 'hidden' : ''}">
                 <div class="sidebar-brand">
+                    <span class="brand-mark">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                        >
+                            <path d="M13 3v7h6l-8 11v-7H5z" />
+                        </svg>
+                    </span>
                     <h1>Cheating Daddy</h1>
                 </div>
                 <nav class="sidebar-nav">
@@ -1075,10 +1140,10 @@ export class CheatingDaddyApp extends LitElement {
                               `
                             : ''
                     }
-                    ${this.statusText ? html`<span class="live-bar-text">${this.statusText}</span>` : ''}
+                    ${this.statusText ? html`<span class="live-bar-text status" title=${this.statusText}>${this.statusText}</span>` : ''}
                     <span class="live-bar-text">${this.getElapsedTime()}</span>
-                    ${this._isClickThrough ? html`<span class="live-bar-text">[click through]</span>` : ''}
-                    <span class="live-bar-text clickable" @click=${() => this.handleHideToggle()}>[hide]</span>
+                    ${this._isClickThrough ? html`<span class="live-bar-text badge">Click-through</span>` : ''}
+                    <span class="live-bar-text clickable" @click=${() => this.handleHideToggle()}>Hide</span>
                 </div>
             </div>
         `;
@@ -1095,12 +1160,33 @@ export class CheatingDaddyApp extends LitElement {
         return html`
             <div class="app-shell">
                 <div class="top-drag-bar ${isLive ? 'hidden' : ''}">
-                    <div class="traffic-lights">
-                        <button class="traffic-light close" @click=${() => this.handleClose()} title="Close"></button>
-                        <button class="traffic-light minimize" @click=${() => this._handleMinimize()} title="Minimize"></button>
-                        <button class="traffic-light maximize" title="Maximize"></button>
-                    </div>
                     <div class="drag-region"></div>
+                    <div class="window-controls">
+                        <button class="wc-btn" @click=${() => this._handleMinimize()} title="Minimize" aria-label="Minimize">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M5 12h14" />
+                            </svg>
+                        </button>
+                        <button class="wc-btn close" @click=${() => this.handleClose()} title="Close" aria-label="Close">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            >
+                                <path d="M18 6L6 18M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 ${this.renderSidebar()}
                 <div class="content">

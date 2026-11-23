@@ -929,18 +929,19 @@ const cheatingDaddyApp = document.querySelector('cheating-daddy-app');
 const theme = {
     themes: {
         dark: {
-            background: '#101010',
-            text: '#e0e0e0',
-            textSecondary: '#a0a0a0',
-            textMuted: '#6b6b6b',
-            border: '#2a2a2a',
-            accent: '#ffffff',
-            btnPrimaryBg: '#ffffff',
-            btnPrimaryText: '#000000',
-            btnPrimaryHover: '#e0e0e0',
-            tooltipBg: '#1a1a1a',
-            tooltipText: '#ffffff',
-            keyBg: 'rgba(255,255,255,0.1)',
+            background: '#131316',
+            text: '#ececef',
+            textSecondary: '#a0a0a9',
+            textMuted: '#858590',
+            border: '#2c2c32',
+            accent: '#8b9cff',
+            accentHover: '#a3b0ff',
+            btnPrimaryBg: '#ececef',
+            btnPrimaryText: '#131316',
+            btnPrimaryHover: '#ffffff',
+            tooltipBg: '#222227',
+            tooltipText: '#ececef',
+            keyBg: 'rgba(255,255,255,0.08)',
         },
         light: {
             background: '#ffffff',
@@ -1116,9 +1117,9 @@ const theme = {
         const isLight = (baseRgb.r + baseRgb.g + baseRgb.b) / 3 > 128;
         const adjust = isLight ? this.darkenColor.bind(this) : this.lightenColor.bind(this);
 
-        const secondary = adjust(baseRgb, 10);
-        const tertiary = adjust(baseRgb, 22);
-        const hover = adjust(baseRgb, 28);
+        const secondary = adjust(baseRgb, 7);
+        const tertiary = adjust(baseRgb, 15);
+        const hover = adjust(baseRgb, 23);
 
         const bgBase = `rgba(${baseRgb.r}, ${baseRgb.g}, ${baseRgb.b}, ${alpha})`;
         const bgSurface = `rgba(${secondary.r}, ${secondary.g}, ${secondary.b}, ${alpha})`;
@@ -1130,6 +1131,8 @@ const theme = {
         root.style.setProperty('--bg-surface', bgSurface);
         root.style.setProperty('--bg-elevated', bgElevated);
         root.style.setProperty('--bg-hover', bgHover);
+        // Opaque surface for dialogs and popovers (ignores the window transparency setting)
+        root.style.setProperty('--bg-popover', `rgb(${secondary.r}, ${secondary.g}, ${secondary.b})`);
 
         // Legacy aliases
         root.style.setProperty('--header-background', bgBase);
@@ -1153,14 +1156,20 @@ const theme = {
         root.style.setProperty('--text-secondary', colors.textSecondary);
         root.style.setProperty('--text-muted', colors.textMuted);
         root.style.setProperty('--border', colors.border);
-        root.style.setProperty('--border-strong', colors.accent);
-        root.style.setProperty('--accent', colors.btnPrimaryBg);
-        root.style.setProperty('--accent-hover', colors.btnPrimaryHover);
+        const borderRgb = this.hexToRgb(colors.border);
+        const bgRgb = this.hexToRgb(colors.background);
+        const bgIsLight = (bgRgb.r + bgRgb.g + bgRgb.b) / 3 > 128;
+        const strongRgb = bgIsLight ? this.darkenColor(borderRgb, 16) : this.lightenColor(borderRgb, 14);
+        const accentRgb = this.hexToRgb(colors.accent);
+        root.style.setProperty('--border-strong', `rgb(${strongRgb.r}, ${strongRgb.g}, ${strongRgb.b})`);
+        root.style.setProperty('--accent', colors.accent);
+        root.style.setProperty('--accent-hover', colors.accentHover || colors.btnPrimaryHover);
+        root.style.setProperty('--accent-soft', `rgba(${accentRgb.r}, ${accentRgb.g}, ${accentRgb.b}, 0.14)`);
 
         // Legacy aliases
         root.style.setProperty('--text-color', colors.text);
         root.style.setProperty('--border-color', colors.border);
-        root.style.setProperty('--border-default', colors.accent);
+        root.style.setProperty('--border-default', `rgb(${strongRgb.r}, ${strongRgb.g}, ${strongRgb.b})`);
         root.style.setProperty('--placeholder-color', colors.textMuted);
         root.style.setProperty('--scrollbar-thumb', colors.border);
         root.style.setProperty('--scrollbar-thumb-hover', colors.textMuted);
@@ -1177,8 +1186,8 @@ const theme = {
         root.style.setProperty('--tooltip-bg', colors.tooltipBg);
         root.style.setProperty('--tooltip-text', colors.tooltipText);
         // Error color (stays constant)
-        root.style.setProperty('--error-color', '#f14c4c');
-        root.style.setProperty('--success-color', '#4caf50');
+        root.style.setProperty('--error-color', '#f87171');
+        root.style.setProperty('--success-color', '#4ade80');
 
         // Also apply background colors from theme
         this.applyBackgrounds(colors.background, alpha);
