@@ -16,13 +16,13 @@ export const unifiedPageStyles = css`
     .unified-page {
         height: 100%;
         overflow-y: auto;
-        padding: var(--space-lg);
+        padding: 44px var(--space-lg) var(--space-lg);
         background: var(--bg-app);
     }
 
     .unified-wrap {
         width: 100%;
-        max-width: 1160px;
+        max-width: 760px;
         margin: 0 auto;
         display: flex;
         flex-direction: column;
@@ -31,8 +31,9 @@ export const unifiedPageStyles = css`
     }
 
     .page-title {
-        font-size: var(--font-size-xl);
-        font-weight: var(--font-weight-semibold);
+        font-size: 22px;
+        font-weight: var(--font-weight-medium);
+        letter-spacing: -0.01em;
         color: var(--text-primary);
         margin-bottom: 4px;
     }
@@ -44,15 +45,15 @@ export const unifiedPageStyles = css`
 
     .surface {
         border: 1px solid var(--border);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-lg);
         background: var(--bg-surface);
-        padding: var(--space-md);
+        padding: var(--space-md) 20px;
     }
 
     .surface-title {
         color: var(--text-primary);
         font-size: var(--font-size-md);
-        font-weight: var(--font-weight-semibold);
+        font-weight: var(--font-weight-medium);
         margin-bottom: 4px;
     }
 
@@ -100,14 +101,17 @@ export const unifiedPageStyles = css`
     }
 
     .control {
-        width: 200px;
+        width: 260px;
+        max-width: 100%;
         background: var(--bg-elevated);
         color: var(--text-primary);
         border: 1px solid var(--border);
-        border-radius: var(--radius-sm);
+        border-radius: var(--radius-md);
         padding: 8px 12px;
         font-size: var(--font-size-sm);
-        transition: border-color var(--transition), box-shadow var(--transition);
+        transition:
+            border-color var(--transition),
+            box-shadow var(--transition);
     }
 
     .control:hover:not(:focus) {
@@ -117,7 +121,7 @@ export const unifiedPageStyles = css`
     .control:focus {
         outline: none;
         border-color: var(--accent);
-        box-shadow: 0 0 0 1px var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
     }
 
     select.control {
@@ -162,6 +166,24 @@ export const unifiedPageStyles = css`
 
     .danger {
         color: var(--danger);
+    }
+
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--border-strong);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--scrollbar-thumb-hover, #4a4a54);
     }
 
     @media (max-width: 640px) {

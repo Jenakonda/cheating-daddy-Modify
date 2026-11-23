@@ -14,24 +14,11 @@ export class CustomizeView extends LitElement {
                 margin-top: 4px;
                 padding: 8px 12px;
                 border: 1px solid var(--danger);
-                border-radius: var(--radius-sm);
+                border-radius: var(--radius-md);
                 color: var(--danger);
                 font-size: var(--font-size-xs);
                 line-height: 1.4;
-                background: rgba(239, 68, 68, 0.06);
-            }
-
-            .warning-callout::before {
-                content: '';
-                position: absolute;
-                top: -6px;
-                left: 16px;
-                width: 10px;
-                height: 10px;
-                background: var(--bg-surface);
-                border-top: 1px solid var(--danger);
-                border-left: 1px solid var(--danger);
-                transform: rotate(45deg);
+                background: rgba(248, 113, 113, 0.08);
             }
 
             .toggle-row {
@@ -40,14 +27,14 @@ export class CustomizeView extends LitElement {
                 gap: var(--space-sm);
                 padding: var(--space-sm);
                 border: 1px solid var(--border);
-                border-radius: var(--radius-sm);
+                border-radius: var(--radius-md);
                 background: var(--bg-elevated);
             }
 
             .toggle-input {
                 width: 14px;
                 height: 14px;
-                accent-color: var(--text-primary);
+                accent-color: var(--accent);
                 cursor: pointer;
             }
 
@@ -88,7 +75,7 @@ export class CustomizeView extends LitElement {
                 width: 100%;
                 height: 4px;
                 border-radius: 2px;
-                background: var(--border);
+                background: var(--border-strong);
                 outline: none;
                 cursor: pointer;
             }
@@ -96,8 +83,8 @@ export class CustomizeView extends LitElement {
             .slider-input::-webkit-slider-thumb {
                 -webkit-appearance: none;
                 appearance: none;
-                width: 14px;
-                height: 14px;
+                width: 16px;
+                height: 16px;
                 border-radius: 50%;
                 background: var(--text-primary);
                 border: none;
@@ -147,7 +134,7 @@ export class CustomizeView extends LitElement {
             }
 
             .danger-button:hover {
-                background: rgba(241, 76, 76, 0.11);
+                background: rgba(248, 113, 113, 0.12);
             }
 
             .danger-button:disabled {

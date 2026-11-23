@@ -25,7 +25,7 @@ export class AssistantView extends LitElement {
             font-size: var(--response-font-size, 15px);
             line-height: var(--line-height);
             background: var(--bg-app);
-            padding: var(--space-sm) var(--space-md);
+            padding: var(--space-md) var(--space-lg);
             user-select: text;
             cursor: text;
             color: var(--text-primary);
@@ -169,7 +169,7 @@ export class AssistantView extends LitElement {
         }
 
         .response-container::-webkit-scrollbar-thumb:hover {
-            background: #444444;
+            background: var(--scrollbar-thumb-hover, #4a4a54);
         }
 
         /* ── Response navigation strip ── */
@@ -180,7 +180,7 @@ export class AssistantView extends LitElement {
             justify-content: center;
             flex-shrink: 0;
             gap: var(--space-sm);
-            padding: var(--space-xs) var(--space-md);
+            padding: var(--space-sm) var(--space-md);
             border-top: 1px solid var(--border);
             background: var(--bg-app);
         }
@@ -227,8 +227,9 @@ export class AssistantView extends LitElement {
             align-items: center;
             flex-shrink: 0;
             gap: var(--space-sm);
-            padding: var(--space-md);
+            padding: 12px var(--space-md) var(--space-md);
             background: var(--bg-app);
+            border-top: 1px solid var(--border);
         }
 
         .input-bar-inner {
@@ -239,7 +240,7 @@ export class AssistantView extends LitElement {
             border: 1px solid var(--border);
             border-radius: 100px;
             padding: 0 var(--space-md);
-            height: 32px;
+            height: 36px;
             transition: border-color var(--transition);
         }
 
@@ -274,7 +275,7 @@ export class AssistantView extends LitElement {
             white-space: nowrap;
             padding: var(--space-xs) var(--space-md);
             border-radius: 100px;
-            height: 32px;
+            height: 36px;
             display: flex;
             align-items: center;
             gap: 4px;
@@ -313,7 +314,7 @@ export class AssistantView extends LitElement {
             opacity: 0.7;
             padding: 1px 5px;
             border-radius: 4px;
-            background: rgba(255, 255, 255, 0.08);
+            background: var(--bg-surface);
             border: 1px solid var(--border);
         }
 

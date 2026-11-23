@@ -144,12 +144,11 @@ export class AICustomizeView extends LitElement {
                 padding: 1px 6px;
                 border-radius: 4px;
                 border: 1px solid var(--border);
-                font-size: 10px;
-                text-transform: uppercase;
+                font-size: 11px;
             }
             .cf-status.loaded {
-                border-color: rgba(34, 197, 94, 0.35);
-                color: #86efac;
+                border-color: rgba(74, 222, 128, 0.35);
+                color: var(--success);
             }
             .cf-status.warn {
                 border-color: rgba(212, 160, 23, 0.45);

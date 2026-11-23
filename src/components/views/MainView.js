@@ -215,38 +215,39 @@ export class MainView extends LitElement {
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            padding: var(--space-lg);
         }
 
         .form-wrapper {
             width: 100%;
-            max-width: 540px;
+            max-width: 668px;
+            padding: 44px var(--space-lg) var(--space-xl);
             display: flex;
             flex-direction: column;
             gap: var(--space-md);
         }
 
         .page-title {
-            font-size: var(--font-size-xl);
-            font-weight: var(--font-weight-semibold);
+            font-size: 22px;
+            font-weight: var(--font-weight-medium);
+            letter-spacing: -0.01em;
             color: var(--text-primary);
-            margin-bottom: var(--space-xs);
+            margin-bottom: 2px;
         }
 
         .page-title .mode-suffix {
-            opacity: 0.5;
+            color: var(--text-muted);
         }
 
         .page-subtitle {
             font-size: var(--font-size-sm);
-            color: var(--text-muted);
-            margin-bottom: var(--space-md);
+            color: var(--text-secondary);
+            margin-bottom: var(--space-sm);
         }
 
         .quick-settings-card {
-            padding: 12px 14px;
+            padding: 14px 16px;
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             background: var(--bg-surface);
             display: flex;
             flex-direction: column;
@@ -268,9 +269,9 @@ export class MainView extends LitElement {
         /* ── Context Folder card ── */
 
         .context-folder-card {
-            padding: 12px 14px;
+            padding: 14px 16px;
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             background: var(--bg-surface);
             display: flex;
             flex-direction: column;
@@ -315,15 +316,15 @@ export class MainView extends LitElement {
         }
 
         .context-status-pill.active {
-            border-color: rgba(34, 197, 94, 0.35);
-            background: rgba(34, 197, 94, 0.1);
-            color: #86efac;
+            border-color: rgba(74, 222, 128, 0.35);
+            background: rgba(74, 222, 128, 0.1);
+            color: var(--success);
         }
 
         .context-status-pill.rag {
-            border-color: rgba(59, 130, 246, 0.4);
-            background: rgba(59, 130, 246, 0.12);
-            color: #93c5fd;
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--accent);
         }
 
         .context-folder-path-row {
@@ -441,8 +442,8 @@ export class MainView extends LitElement {
             gap: 10px;
             padding: 14px 16px;
             border-radius: var(--radius-md);
-            border: 1px solid rgba(59, 130, 246, 0.45);
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(139, 92, 246, 0.09) 100%);
+            border: 1px solid var(--accent);
+            background: var(--accent-soft);
             cursor: pointer;
             transition:
                 border-color 0.2s,
@@ -450,21 +451,11 @@ export class MainView extends LitElement {
         }
 
         .cloud-promo:hover {
-            border-color: rgba(59, 130, 246, 0.65);
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.16) 0%, rgba(139, 92, 246, 0.12) 100%);
-            box-shadow:
-                0 0 20px rgba(59, 130, 246, 0.15),
-                0 0 40px rgba(139, 92, 246, 0.08);
+            border-color: var(--accent-hover);
         }
 
         .cloud-promo-glow {
-            position: absolute;
-            top: -40%;
-            right: -20%;
-            width: 120px;
-            height: 120px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%);
-            pointer-events: none;
+            display: none;
         }
 
         .cloud-promo-header {
@@ -505,7 +496,7 @@ export class MainView extends LitElement {
 
         .config-section {
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-lg);
             background: var(--bg-surface);
             overflow: hidden;
         }
@@ -515,7 +506,7 @@ export class MainView extends LitElement {
             align-items: center;
             justify-content: space-between;
             gap: var(--space-md);
-            padding: 12px 14px;
+            padding: 14px 16px;
             cursor: pointer;
             list-style: none;
         }
@@ -560,7 +551,7 @@ export class MainView extends LitElement {
             display: flex;
             flex-direction: column;
             gap: var(--space-md);
-            padding: 14px;
+            padding: 16px;
             border-top: 1px solid var(--border);
         }
 
@@ -598,10 +589,8 @@ export class MainView extends LitElement {
 
         .form-label {
             font-size: var(--font-size-xs);
-            font-weight: var(--font-weight-medium);
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            font-weight: var(--font-weight-normal);
+            color: var(--text-muted);
         }
 
         input,
@@ -610,9 +599,9 @@ export class MainView extends LitElement {
             background: var(--bg-elevated);
             color: var(--text-primary);
             border: 1px solid var(--border);
-            padding: 10px 12px;
+            padding: 9px 12px;
             width: 100%;
-            border-radius: var(--radius-sm);
+            border-radius: var(--radius-md);
             font-size: var(--font-size-sm);
             font-family: var(--font);
             transition:
@@ -623,7 +612,7 @@ export class MainView extends LitElement {
         input:hover:not(:focus),
         select:hover:not(:focus),
         textarea:hover:not(:focus) {
-            border-color: var(--text-muted);
+            border-color: var(--border-strong);
         }
 
         input:focus,
@@ -631,7 +620,7 @@ export class MainView extends LitElement {
         textarea:focus {
             outline: none;
             border-color: var(--accent);
-            box-shadow: 0 0 0 1px var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
         input::placeholder,
@@ -701,13 +690,13 @@ export class MainView extends LitElement {
         .start-button {
             position: relative;
             overflow: hidden;
-            background: #e8e8e8;
-            color: #111111;
+            background: var(--btn-primary-bg, var(--text-primary));
+            color: var(--btn-primary-text, var(--bg-app));
             border: none;
             padding: 12px var(--space-md);
-            border-radius: var(--radius-sm);
+            border-radius: var(--radius-md);
             font-size: var(--font-size-base);
-            font-weight: var(--font-weight-semibold);
+            font-weight: var(--font-weight-medium);
             cursor: pointer;
             width: 100%;
             display: flex;
@@ -744,8 +733,8 @@ export class MainView extends LitElement {
             gap: var(--space-sm);
         }
 
-        .start-button:hover {
-            opacity: 0.9;
+        .start-button:hover:not(.disabled) {
+            background: var(--btn-primary-hover, #ffffff);
         }
 
         .start-button.disabled {
@@ -762,7 +751,7 @@ export class MainView extends LitElement {
             inset: 0 auto 0 0;
             z-index: 2;
             width: 0;
-            background: rgba(17, 17, 17, 0.16);
+            background: rgba(0, 0, 0, 0.14);
             transition: width 0.2s ease;
             pointer-events: none;
         }
@@ -947,7 +936,7 @@ export class MainView extends LitElement {
             gap: var(--space-md);
             padding: var(--space-lg);
             overflow: hidden;
-            background: var(--bg-surface);
+            background: var(--bg-popover, var(--bg-surface));
             border: 1px solid var(--border-strong);
             border-radius: var(--radius-lg);
             color: var(--text-primary);
@@ -1117,14 +1106,14 @@ export class MainView extends LitElement {
             display: flex;
             flex-direction: column;
             gap: 3px;
-            padding: 9px 11px;
-            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            border-radius: var(--radius-lg);
             border: 1px solid var(--border);
             background: var(--bg-surface);
         }
 
         .cli-status-card.active-primary {
-            border-color: rgba(59, 130, 246, 0.45);
+            border-color: var(--accent);
         }
 
         .cli-status-title-row {
@@ -1199,15 +1188,15 @@ export class MainView extends LitElement {
         }
 
         .cli-setup-btn.primary {
-            border-color: rgba(59, 130, 246, 0.55);
-            background: rgba(59, 130, 246, 0.16);
-            color: #bfdbfe;
+            border-color: var(--accent);
+            background: var(--accent-soft);
+            color: var(--text-primary);
         }
 
         .cli-setup-btn.primary:hover:not(:disabled) {
-            border-color: rgba(96, 165, 250, 0.8);
-            background: rgba(59, 130, 246, 0.28);
-            color: #eff6ff;
+            border-color: var(--accent-hover);
+            background: rgba(139, 156, 255, 0.26);
+            color: var(--text-primary);
         }
 
         .cli-setup-btn.warn {
@@ -1239,8 +1228,8 @@ export class MainView extends LitElement {
             gap: 8px;
             padding: 8px 10px;
             border-radius: var(--radius-sm);
-            border: 1px solid rgba(59, 130, 246, 0.35);
-            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid var(--accent);
+            background: var(--accent-soft);
             color: var(--text-secondary);
             font-size: 11px;
             line-height: 1.4;
@@ -1313,7 +1302,7 @@ export class MainView extends LitElement {
         }
 
         .model-card.primary {
-            border-color: rgba(59, 130, 246, 0.45);
+            border-color: var(--accent);
         }
 
         .model-card-header {
@@ -1348,9 +1337,9 @@ export class MainView extends LitElement {
         }
 
         .model-role-badge.primary {
-            border-color: rgba(59, 130, 246, 0.45);
-            color: #93c5fd;
-            background: rgba(59, 130, 246, 0.12);
+            border-color: var(--accent);
+            color: var(--accent);
+            background: var(--accent-soft);
         }
 
         .model-id-badge {
@@ -1402,7 +1391,7 @@ export class MainView extends LitElement {
 
         .effort-pill.active {
             border-color: var(--accent);
-            background: rgba(59, 130, 246, 0.16);
+            background: var(--accent-soft);
             color: var(--text-primary);
         }
     `;
@@ -1523,11 +1512,6 @@ export class MainView extends LitElement {
         this._showCliHelp = false;
         this._cliError = '';
 
-        this._animId = null;
-        this._time = 0;
-        this._mouseX = -1;
-        this._mouseY = -1;
-
         this.boundKeydownHandler = this._handleKeydown.bind(this);
         this.boundFocusHandler = this._handleWindowFocus.bind(this);
         this._loadFromStorage();
@@ -1620,7 +1604,6 @@ export class MainView extends LitElement {
         super.disconnectedCallback();
         document.removeEventListener('keydown', this.boundKeydownHandler);
         window.removeEventListener('focus', this.boundFocusHandler);
-        if (this._animId) cancelAnimationFrame(this._animId);
     }
 
     async _handleWindowFocus() {
@@ -1672,111 +1655,6 @@ export class MainView extends LitElement {
             this._cliSetupNotice = '';
             this.requestUpdate();
         }
-    }
-
-    updated(changedProperties) {
-        super.updated(changedProperties);
-        if (changedProperties.has('_mode')) {
-            // Stop old animation when switching modes
-            if (this._animId) {
-                cancelAnimationFrame(this._animId);
-                this._animId = null;
-            }
-        }
-    }
-
-    _initButtonAurora() {
-        const btn = this.shadowRoot.querySelector('.start-button');
-        const aurora = this.shadowRoot.querySelector('canvas.btn-aurora');
-        const dither = this.shadowRoot.querySelector('canvas.btn-dither');
-        if (!aurora || !dither || !btn) return;
-
-        // Mouse tracking
-        this._mouseX = -1;
-        this._mouseY = -1;
-        btn.addEventListener('mousemove', e => {
-            const rect = btn.getBoundingClientRect();
-            this._mouseX = (e.clientX - rect.left) / rect.width;
-            this._mouseY = (e.clientY - rect.top) / rect.height;
-        });
-        btn.addEventListener('mouseleave', () => {
-            this._mouseX = -1;
-            this._mouseY = -1;
-        });
-
-        // Dither
-        const blockSize = 8;
-        const cols = Math.ceil(aurora.offsetWidth / blockSize);
-        const rows = Math.ceil(aurora.offsetHeight / blockSize);
-        dither.width = cols;
-        dither.height = rows;
-        const dCtx = dither.getContext('2d');
-        const img = dCtx.createImageData(cols, rows);
-        for (let i = 0; i < img.data.length; i += 4) {
-            const v = Math.random() > 0.5 ? 255 : 0;
-            img.data[i] = v;
-            img.data[i + 1] = v;
-            img.data[i + 2] = v;
-            img.data[i + 3] = 255;
-        }
-        dCtx.putImageData(img, 0, 0);
-
-        // Aurora
-        const ctx = aurora.getContext('2d');
-        const scale = 0.4;
-        aurora.width = Math.floor(aurora.offsetWidth * scale);
-        aurora.height = Math.floor(aurora.offsetHeight * scale);
-
-        const blobs = [
-            { color: [120, 160, 230], x: 0.1, y: 0.3, vx: 0.25, vy: 0.2, phase: 0 },
-            { color: [150, 120, 220], x: 0.8, y: 0.5, vx: -0.2, vy: 0.25, phase: 1.5 },
-            { color: [200, 140, 210], x: 0.5, y: 0.6, vx: 0.18, vy: -0.22, phase: 3.0 },
-            { color: [100, 190, 190], x: 0.3, y: 0.7, vx: 0.3, vy: 0.15, phase: 4.5 },
-            { color: [220, 170, 130], x: 0.7, y: 0.4, vx: -0.22, vy: -0.25, phase: 6.0 },
-        ];
-
-        const draw = () => {
-            this._time += 0.008;
-            const w = aurora.width;
-            const h = aurora.height;
-            const maxDim = Math.max(w, h);
-
-            ctx.fillStyle = '#f0f0f0';
-            ctx.fillRect(0, 0, w, h);
-
-            const hovering = this._mouseX >= 0;
-
-            for (const blob of blobs) {
-                const t = this._time;
-                const cx = (blob.x + Math.sin(t * blob.vx + blob.phase) * 0.4) * w;
-                const cy = (blob.y + Math.cos(t * blob.vy + blob.phase * 0.7) * 0.4) * h;
-                const r = maxDim * 0.45;
-
-                let boost = 1;
-                if (hovering) {
-                    const dx = cx / w - this._mouseX;
-                    const dy = cy / h - this._mouseY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    boost = 1 + 2.5 * Math.max(0, 1 - dist / 0.6);
-                }
-
-                const a0 = Math.min(1, 0.18 * boost);
-                const a1 = Math.min(1, 0.08 * boost);
-                const a2 = Math.min(1, 0.02 * boost);
-
-                const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-                grad.addColorStop(0, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a0})`);
-                grad.addColorStop(0.3, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a1})`);
-                grad.addColorStop(0.6, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, ${a2})`);
-                grad.addColorStop(1, `rgba(${blob.color[0]}, ${blob.color[1]}, ${blob.color[2]}, 0)`);
-                ctx.fillStyle = grad;
-                ctx.fillRect(0, 0, w, h);
-            }
-
-            this._animId = requestAnimationFrame(draw);
-        };
-
-        draw();
     }
 
     _handleKeydown(e) {
@@ -2316,8 +2194,6 @@ export class MainView extends LitElement {
                 ?disabled=${this.isInitializing || isDownloading}
                 @click=${() => this._handleStart()}
             >
-                <canvas class="btn-aurora"></canvas>
-                <canvas class="btn-dither"></canvas>
                 ${
                     isDownloading
                         ? html`<span
@@ -2678,7 +2554,7 @@ export class MainView extends LitElement {
         const totalLiveModels = this._agyLiveModels.length;
 
         return html`
-            <details class="config-section" open>
+            <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
                         <span class="config-summary-title">AI Models &amp; Effort</span>
@@ -2856,8 +2732,9 @@ export class MainView extends LitElement {
                       `
                     : ''
             }
+            ${this._renderStartButton()}
 
-            <details class="config-section" open>
+            <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
                         <span class="config-summary-title">CLI Provider</span>
@@ -2898,7 +2775,7 @@ export class MainView extends LitElement {
 
             ${this._renderCliModelsSection()}
 
-            <details class="config-section" open>
+            <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
                         <span class="config-summary-title">Voice Transcription</span>
@@ -2960,7 +2837,7 @@ export class MainView extends LitElement {
                 </div>
             </details>
 
-            ${this._renderStartButton()} ${this._renderDivider()}
+            ${this._renderDivider()}
 
             <div class="mode-links">
                 <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
