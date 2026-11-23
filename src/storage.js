@@ -22,9 +22,12 @@ const DEFAULT_CREDENTIALS = {
 
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
-    providerMode: 'byok',
+    providerMode: 'cli',
     selectedProfile: 'interview',
-    selectedLanguage: 'en-US',
+    selectedLanguage: 'auto',
+    responseLanguage: 'auto',
+    contextFolderEnabled: true,
+    contextFolderPath: '',
     selectedScreenshotInterval: '5',
     selectedImageQuality: 'medium',
     advancedMode: false,
@@ -33,7 +36,17 @@ const DEFAULT_PREFERENCES = {
     backgroundTransparency: 0.8,
     googleSearchEnabled: false,
     localLlmModel: 'unsloth/Qwen3.5-4B-GGUF:Q4_K_M',
-    whisperModel: 'tiny.en',
+    whisperModel: 'small-q5_1',
+    cliPrimaryProvider: 'claude',
+    cliFallbackEnabled: true,
+    cliClaudeModel: 'sonnet',
+    cliClaudeEffort: 'auto',
+    cliGeminiModel: 'gemini-4-hydrogen-low',
+    cliClaudePath: '',
+    cliGeminiPath: '',
+    cliUseSubscriptionAuth: true,
+    cliWhisperEnabled: true,
+    cliMicContextOnly: true,
 };
 
 const DEFAULT_KEYBINDS = null; // null means use system defaults
@@ -61,6 +74,10 @@ function getConfigDir() {
 // File paths
 function getConfigPath() {
     return path.join(getConfigDir(), 'config.json');
+}
+
+function getDefaultContextDir() {
+    return path.join(getConfigDir(), 'context');
 }
 
 function getCredentialsPath() {
@@ -219,8 +236,13 @@ function getPreferences() {
         'Xenova/whisper-base': 'base.en',
         'Xenova/whisper-small': 'small.en',
     };
+    const legacyGeminiCliModels = {
+        'gemini-2.5-flash': 'gemini-4-hydrogen-low',
+        'gemini-2.5-pro': 'gemini-4-hydrogen-medium',
+    };
 
     preferences.whisperModel = legacyWhisperModels[preferences.whisperModel] || preferences.whisperModel;
+    preferences.cliGeminiModel = legacyGeminiCliModels[preferences.cliGeminiModel] || preferences.cliGeminiModel;
     return preferences;
 }
 
@@ -500,6 +522,7 @@ module.exports = {
     // Initialization
     initializeStorage,
     getConfigDir,
+    getDefaultContextDir,
 
     // Config
     getConfig,

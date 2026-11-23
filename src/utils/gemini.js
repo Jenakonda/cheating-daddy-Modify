@@ -1,20 +1,38 @@
+const fs = require('fs');
+const path = require('path');
 const { GoogleGenAI, Modality } = require('@google/genai');
 const { BrowserWindow, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const { saveDebugAudio } = require('../audioUtils');
 const { getSystemPrompt } = require('./prompts');
-const { getAvailableModel, incrementLimitCount, getApiKey, getGroqApiKey, incrementCharUsage, getConfig } = require('../storage');
+const {
+    getAvailableModel,
+    incrementLimitCount,
+    getApiKey,
+    getGroqApiKey,
+    incrementCharUsage,
+    getConfig,
+    getDefaultContextDir,
+    getPreferences,
+} = require('../storage');
+const { loadContextFolder } = require('./context-folder');
 const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, isCloudActive, setOnTurnComplete } = require('./cloud');
 const { startTransportLog, logTransportEvent, closeTransportLog } = require('./transportLogger');
 
-// Lazy-loaded to avoid circular dependency (localai.js imports from gemini.js)
+// Lazy-loaded to avoid circular dependency (localai.js and cliai.js import from gemini.js)
 let _localai = null;
 function getLocalAi() {
     if (!_localai) _localai = require('./localai');
     return _localai;
 }
 
-// Provider mode: 'byok', 'cloud', or 'local'
+let _cliai = null;
+function getCliAi() {
+    if (!_cliai) _cliai = require('./cliai');
+    return _cliai;
+}
+
+// Provider mode: 'cli', 'byok', 'cloud', or 'local'
 let currentProviderMode = 'byok';
 
 // Groq conversation history for context
@@ -653,7 +671,19 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     const enabledTools = await getEnabledTools();
     const googleSearchEnabled = enabledTools.some(tool => tool.googleSearch);
 
-    const systemPrompt = getSystemPrompt(profile, customPrompt, googleSearchEnabled);
+    const prefs = getPreferences() || {};
+    const responseLanguage = prefs.responseLanguage || 'auto';
+    let folderContext = null;
+    if (prefs.contextFolderEnabled !== false) {
+        const rawFolder = prefs.contextFolderPath && String(prefs.contextFolderPath).trim() ? prefs.contextFolderPath.trim() : getDefaultContextDir();
+        if (rawFolder && fs.existsSync(rawFolder)) {
+            const loadedBundle = await loadContextFolder(rawFolder);
+            if (loadedBundle && loadedBundle.mode !== 'empty') {
+                folderContext = loadedBundle;
+            }
+        }
+    }
+    const systemPrompt = getSystemPrompt(profile, customPrompt, googleSearchEnabled, responseLanguage, folderContext);
     currentSystemPrompt = systemPrompt; // Store for Groq
 
     // Initialize new conversation session only on first connect
@@ -922,7 +952,9 @@ async function startMacOSAudioCapture(geminiSessionRef) {
             if (currentProviderMode === 'cloud') {
                 sendCloudAudio(monoChunk);
             } else if (currentProviderMode === 'local') {
-                getLocalAi().processLocalAudio(monoChunk);
+                getLocalAi().processLocalAudio(monoChunk, 'interviewer');
+            } else if (currentProviderMode === 'cli') {
+                getCliAi().processCliAudio(monoChunk, 'interviewer');
             } else {
                 const base64Data = monoChunk.toString('base64');
                 sendAudioToGemini(base64Data, geminiSessionRef);
@@ -1099,7 +1131,86 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         return cancelled;
     });
 
-    ipcMain.handle('send-audio-content', async (event, { data, mimeType }) => {
+    ipcMain.handle('initialize-cli', async (event, options) => {
+        const safeOptions = options && typeof options === 'object' ? options : {};
+        currentProviderMode = 'cli';
+        const success = await getCliAi().initializeCliSession(safeOptions);
+        if (!success) {
+            currentProviderMode = 'byok';
+        }
+        return success;
+    });
+
+    ipcMain.handle('cancel-cli-initialization', async () => {
+        const cancelled = await getCliAi().cancelCliInitialization();
+        if (cancelled) {
+            currentProviderMode = 'byok';
+        }
+        return cancelled;
+    });
+
+    ipcMain.handle('cli:check-status', async (event, paths) => {
+        try {
+            const safePaths = paths && typeof paths === 'object' ? paths : {};
+            const claudePath = typeof safePaths.claudePath === 'string' ? safePaths.claudePath : '';
+            const geminiPath = typeof safePaths.geminiPath === 'string' ? safePaths.geminiPath : '';
+            const { checkAllCliStatuses } = require('./cli-runners');
+            const data = await checkAllCliStatuses({ claudePath, geminiPath });
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error checking CLI status:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('cli:list-models', async (event, options) => {
+        try {
+            const safeOpts = options && typeof options === 'object' ? options : {};
+            const geminiPath = typeof safeOpts.geminiPath === 'string' ? safeOpts.geminiPath : '';
+            const useSubscriptionAuth = safeOpts.useSubscriptionAuth !== false;
+            const { listAgyModels } = require('./cli-runners');
+            const data = await listAgyModels({ customPath: geminiPath, useSubscriptionAuth });
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error listing CLI models:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('cli:switch-provider', async (event, provider) => {
+        if (provider !== 'claude' && provider !== 'gemini') {
+            return { success: false, error: 'Invalid CLI provider' };
+        }
+        return getCliAi().switchCliProvider(provider);
+    });
+
+    ipcMain.handle('cli:get-active-provider', async () => {
+        return { success: true, data: getCliAi().getActiveCliProvider() };
+    });
+
+    ipcMain.handle('cli:suggest-continuation', async () => {
+        return getCliAi().suggestCliContinuation();
+    });
+
+    function parseAudioSampleRate(mimeType, sampleRate) {
+        const numericRate = Number(sampleRate);
+        if (Number.isFinite(numericRate) && numericRate > 0) {
+            return numericRate;
+        }
+        if (typeof mimeType === 'string') {
+            const match = mimeType.match(/rate=(\d+)/i);
+            if (match) {
+                const parsed = Number(match[1]);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                    return parsed;
+                }
+            }
+        }
+        return 24000;
+    }
+
+    ipcMain.handle('send-audio-content', async (event, { data, mimeType, sampleRate }) => {
+        const resolvedRate = parseAudioSampleRate(mimeType, sampleRate);
         if (currentProviderMode === 'cloud') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
@@ -1113,10 +1224,20 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         if (currentProviderMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
-                getLocalAi().processLocalAudio(pcmBuffer);
+                getLocalAi().processLocalAudio(pcmBuffer, 'interviewer', resolvedRate);
                 return { success: true };
             } catch (error) {
                 console.error('Error sending local audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'cli') {
+            try {
+                const pcmBuffer = Buffer.from(data, 'base64');
+                getCliAi().processCliAudio(pcmBuffer, 'interviewer', resolvedRate);
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending CLI audio:', error);
                 return { success: false, error: error.message };
             }
         }
@@ -1134,7 +1255,8 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     });
 
     // Handle microphone audio on a separate channel
-    ipcMain.handle('send-mic-audio-content', async (event, { data, mimeType }) => {
+    ipcMain.handle('send-mic-audio-content', async (event, { data, mimeType, sampleRate }) => {
+        const resolvedRate = parseAudioSampleRate(mimeType, sampleRate);
         if (currentProviderMode === 'cloud') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
@@ -1148,10 +1270,20 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
         if (currentProviderMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
-                getLocalAi().processLocalAudio(pcmBuffer);
+                getLocalAi().processLocalAudio(pcmBuffer, 'candidate', resolvedRate);
                 return { success: true };
             } catch (error) {
                 console.error('Error sending local mic audio:', error);
+                return { success: false, error: error.message };
+            }
+        }
+        if (currentProviderMode === 'cli') {
+            try {
+                const pcmBuffer = Buffer.from(data, 'base64');
+                getCliAi().processCliAudio(pcmBuffer, 'candidate', resolvedRate);
+                return { success: true };
+            } catch (error) {
+                console.error('Error sending CLI mic audio:', error);
                 return { success: false, error: error.message };
             }
         }
@@ -1197,6 +1329,11 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return result;
             }
 
+            if (currentProviderMode === 'cli') {
+                const result = await getCliAi().sendCliImage(data, prompt);
+                return result;
+            }
+
             const result = hasGroqKey() ? await sendImageToGroq(data, prompt) : await sendImageToGeminiHttp(data, prompt);
             return result;
         } catch (error) {
@@ -1227,6 +1364,16 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return await getLocalAi().sendLocalText(text.trim());
             } catch (error) {
                 console.error('Error sending local text:', error);
+                return { success: false, error: error.message };
+            }
+        }
+
+        if (currentProviderMode === 'cli') {
+            try {
+                console.log('Sending text to CLI:', text);
+                return await getCliAi().sendCliText(text.trim());
+            } catch (error) {
+                console.error('Error sending CLI text:', error);
                 return { success: false, error: error.message };
             }
         }
@@ -1294,6 +1441,13 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
                 return { success: true };
             }
 
+            if (currentProviderMode === 'cli') {
+                getCliAi().closeCliSession();
+                currentProviderMode = 'byok';
+                closeTransportLog();
+                return { success: true };
+            }
+
             // Set flag to prevent reconnection attempts
             isUserClosing = true;
             sessionParams = null;
@@ -1353,6 +1507,7 @@ module.exports = {
     sendToRenderer,
     initializeNewSession,
     saveConversationTurn,
+    saveScreenAnalysis,
     getCurrentSessionData,
     killExistingSystemAudioDump,
     startMacOSAudioCapture,

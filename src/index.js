@@ -2,34 +2,55 @@ if (require('electron-squirrel-startup')) {
     process.exit(0);
 }
 
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const { app, BrowserWindow, dialog, globalShortcut, shell, ipcMain } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
+const { loadContextFolder, summarizeContextBundle, copyFilesIntoContextFolder, clearContextCache } = require('./utils/context-folder');
 const storage = require('./storage');
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            if (mainWindow.isMinimized()) {
+                mainWindow.restore();
+            }
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
 
 function createMainWindow() {
     mainWindow = createWindow(sendToRenderer, geminiSessionRef);
     return mainWindow;
 }
 
-app.whenReady().then(async () => {
-    // Initialize storage (checks version, resets if needed)
-    storage.initializeStorage();
+if (hasSingleInstanceLock) {
+    app.whenReady().then(async () => {
+        // Initialize storage (checks version, resets if needed)
+        storage.initializeStorage();
 
-    // Trigger screen recording permission prompt on macOS if not already granted
-    if (process.platform === 'darwin') {
-        const { desktopCapturer } = require('electron');
-        desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
-    }
+        // Trigger screen recording permission prompt on macOS if not already granted
+        if (process.platform === 'darwin') {
+            const { desktopCapturer } = require('electron');
+            desktopCapturer.getSources({ types: ['screen'] }).catch(() => {});
+        }
 
-    createMainWindow();
-    setupGeminiIpcHandlers(geminiSessionRef);
-    setupStorageIpcHandlers();
-    setupGeneralIpcHandlers();
-});
+        createMainWindow();
+        setupGeminiIpcHandlers(geminiSessionRef);
+        setupStorageIpcHandlers();
+        setupGeneralIpcHandlers();
+        setupContextFolderIpcHandlers();
+    });
+}
 
 app.on('window-all-closed', () => {
     stopMacOSAudioCapture();
@@ -41,6 +62,11 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
     stopMacOSAudioCapture();
     require('./utils/localai').closeLocalSession();
+    require('./utils/cliai').closeCliSession();
+});
+
+app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
 });
 
 app.on('activate', () => {
@@ -285,16 +311,150 @@ function setupGeneralIpcHandlers() {
         }
     });
 
-    ipcMain.on('update-keybinds', (event, newKeybinds) => {
-        if (mainWindow) {
-            // Also save to storage
-            storage.setKeybinds(newKeybinds);
-            updateGlobalShortcuts(newKeybinds, mainWindow, sendToRenderer, geminiSessionRef);
-        }
-    });
-
     // Debug logging from renderer
     ipcMain.on('log-message', (event, msg) => {
         console.log(msg);
+    });
+}
+
+function resolveActiveContextFolder() {
+    const prefs = storage.getPreferences() || {};
+    const customPath = typeof prefs.contextFolderPath === 'string' ? prefs.contextFolderPath.trim() : '';
+    const isDefault = !customPath;
+    const folderPath = isDefault ? storage.getDefaultContextDir() : path.resolve(customPath);
+    const enabled = prefs.contextFolderEnabled !== false;
+    return { folderPath, isDefault, enabled };
+}
+
+function setupContextFolderIpcHandlers() {
+    ipcMain.handle('context-folder:get-summary', async (event, opts = {}) => {
+        try {
+            const { folderPath, isDefault, enabled } = resolveActiveContextFolder();
+            if (isDefault && !fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            if (opts && opts.refresh) {
+                clearContextCache();
+            }
+            const bundle = await loadContextFolder(folderPath);
+            return {
+                success: true,
+                data: summarizeContextBundle(bundle, { isDefault, enabled }),
+            };
+        } catch (error) {
+            console.error('Error getting context folder summary:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('context-folder:choose', async () => {
+        try {
+            const { folderPath: currentFolder } = resolveActiveContextFolder();
+            const dialogParent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+            const result = await dialog.showOpenDialog(dialogParent, {
+                title: 'Select Context Folder',
+                defaultPath: fs.existsSync(currentFolder) ? currentFolder : undefined,
+                properties: ['openDirectory', 'createDirectory'],
+            });
+            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+                return { success: true, canceled: true };
+            }
+
+            const chosenPath = path.resolve(result.filePaths[0]);
+            if (!fs.existsSync(chosenPath) || !fs.statSync(chosenPath).isDirectory()) {
+                return { success: false, error: 'Selected path is not a directory' };
+            }
+
+            storage.updatePreference('contextFolderPath', chosenPath);
+            storage.updatePreference('contextFolderEnabled', true);
+            clearContextCache();
+
+            const bundle = await loadContextFolder(chosenPath);
+            return {
+                success: true,
+                canceled: false,
+                data: summarizeContextBundle(bundle, { isDefault: false, enabled: true }),
+            };
+        } catch (error) {
+            console.error('Error choosing context folder:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('context-folder:open', async () => {
+        try {
+            const { folderPath, isDefault } = resolveActiveContextFolder();
+            if (isDefault && !fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            if (!fs.existsSync(folderPath) || !fs.statSync(folderPath).isDirectory()) {
+                return { success: false, error: 'Context folder does not exist' };
+            }
+            const errMsg = await shell.openPath(folderPath);
+            if (errMsg) {
+                return { success: false, error: errMsg };
+            }
+            return { success: true, path: folderPath };
+        } catch (error) {
+            console.error('Error opening context folder:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('context-folder:add-files', async () => {
+        try {
+            const { folderPath, isDefault, enabled } = resolveActiveContextFolder();
+            const dialogParent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+            const result = await dialog.showOpenDialog(dialogParent, {
+                title: 'Add Reference Files to Context Folder',
+                properties: ['openFile', 'multiSelections'],
+                filters: [
+                    {
+                        name: 'Documents & Presentations',
+                        extensions: ['pdf', 'pptx', 'docx', 'xlsx', 'odt', 'odp', 'rtf', 'md', 'txt', 'html', 'csv', 'json', 'yaml', 'yml'],
+                    },
+                    { name: 'All Files', extensions: ['*'] },
+                ],
+            });
+            if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+                return { success: true, canceled: true };
+            }
+
+            if (isDefault && !fs.existsSync(folderPath)) {
+                fs.mkdirSync(folderPath, { recursive: true });
+            }
+            const { copied, skipped } = copyFilesIntoContextFolder(folderPath, result.filePaths);
+            const bundle = await loadContextFolder(folderPath);
+            return {
+                success: true,
+                canceled: false,
+                copied,
+                skipped,
+                data: summarizeContextBundle(bundle, { isDefault, enabled }),
+            };
+        } catch (error) {
+            console.error('Error adding files to context folder:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('context-folder:reset-default', async () => {
+        try {
+            storage.updatePreference('contextFolderPath', '');
+            const defaultDir = storage.getDefaultContextDir();
+            if (!fs.existsSync(defaultDir)) {
+                fs.mkdirSync(defaultDir, { recursive: true });
+            }
+            clearContextCache();
+            const prefs = storage.getPreferences() || {};
+            const bundle = await loadContextFolder(defaultDir);
+            return {
+                success: true,
+                data: summarizeContextBundle(bundle, { isDefault: true, enabled: prefs.contextFolderEnabled !== false }),
+            };
+        } catch (error) {
+            console.error('Error resetting context folder:', error);
+            return { success: false, error: error.message };
+        }
     });
 }

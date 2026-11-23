@@ -13,6 +13,193 @@ const LOCAL_LLM_PRESETS = [
     { value: 'unsloth/Qwen3.5-35B-A3B-GGUF:Q4_K_M', label: 'Qwen 3.5 35B-A3B Q4 — 22.92 GB · Largest' },
 ];
 
+const WHISPER_MODEL_OPTIONS = [
+    { value: 'small-q5_1', label: 'Small Q5 Multilingual (181 MB · ~0.3s GPU / ~1.3s CPU · Recommended)' },
+    { value: 'base-q5_1', label: 'Base Q5 Multilingual (57 MB · Ultra-fast ~0.4s)' },
+    { value: 'base', label: 'Base Multilingual (148 MB · Fast ~0.4s)' },
+    { value: 'small', label: 'Small Multilingual (488 MB · Accurate)' },
+    { value: 'large-v3-turbo-q5_0', label: 'Large v3 Turbo Q5 (574 MB · Best Ukrainian, ~1.1s GPU / ~6s CPU)' },
+    { value: 'tiny', label: 'Tiny Multilingual (78 MB · Fastest)' },
+    { value: 'tiny.en', label: 'Tiny English-only (75 MB)' },
+    { value: 'base.en', label: 'Base English-only (142 MB)' },
+    { value: 'small.en', label: 'Small English-only (466 MB)' },
+];
+
+const AUDIO_INPUT_OPTIONS = [
+    { value: 'speaker_only', label: 'System Audio Only (Other speakers)' },
+    { value: 'mic_only', label: 'Microphone Only (Your voice)' },
+    { value: 'both', label: 'Both Microphone & System Audio' },
+];
+
+const SPEECH_LANGUAGE_OPTIONS = [
+    { value: 'auto', label: 'Auto-detect (Multilingual · Recommended)' },
+    { value: 'uk-UA', label: 'Ukrainian (uk-UA)' },
+    { value: 'en-US', label: 'English (US)' },
+    { value: 'en-GB', label: 'English (UK)' },
+    { value: 'pl-PL', label: 'Polish (pl-PL)' },
+    { value: 'de-DE', label: 'German (de-DE)' },
+    { value: 'ru-RU', label: 'Russian (ru-RU)' },
+];
+
+const PROFILE_OPTIONS = [
+    { value: 'interview', label: 'Job Interview' },
+    { value: 'exam', label: 'Exam Assistant' },
+    { value: 'meeting', label: 'Business Meeting' },
+    { value: 'sales', label: 'Sales Call' },
+    { value: 'presentation', label: 'Presentation' },
+    { value: 'negotiation', label: 'Negotiation' },
+];
+
+const RESPONSE_LANGUAGE_OPTIONS = [
+    { value: 'auto', label: 'Auto (match question)' },
+    { value: 'uk', label: 'Українська (Ukrainian)' },
+    { value: 'en', label: 'English' },
+    { value: 'ru', label: 'Русский (Russian)' },
+    { value: 'pl', label: 'Polski (Polish)' },
+    { value: 'de', label: 'Deutsch (German)' },
+    { value: 'es', label: 'Español (Spanish)' },
+    { value: 'fr', label: 'Français (French)' },
+    { value: 'it', label: 'Italiano (Italian)' },
+    { value: 'pt', label: 'Português (Portuguese)' },
+];
+
+const CLAUDE_MODEL_PRESETS = [
+    { value: 'sonnet', label: 'Claude Sonnet (Balanced · Recommended)' },
+    { value: 'opus', label: 'Claude Opus (Most capable)' },
+    { value: 'haiku', label: 'Claude Haiku (Fastest)' },
+    { value: 'fable', label: 'Claude Fable (Latest preview)' },
+    { value: 'default', label: 'Auto (CLI default)' },
+];
+
+const CLAUDE_EFFORT_OPTIONS = [
+    { value: 'auto', label: 'Auto' },
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'xhigh', label: 'XHigh' },
+    { value: 'max', label: 'Max' },
+];
+
+const EFFORT_TIER_ORDER = ['low', 'medium', 'high', 'xhigh', 'max'];
+const EFFORT_TIER_LABELS = {
+    low: 'Low',
+    medium: 'Medium',
+    high: 'High',
+    xhigh: 'XHigh',
+    max: 'Max',
+};
+
+const DEFAULT_AGY_MODELS = [
+    { id: 'gemini-4-hydrogen-low', label: 'Gemini 4 Hydrogen (Low)' },
+    { id: 'gemini-4-hydrogen-medium', label: 'Gemini 4 Hydrogen (Medium)' },
+    { id: 'gemini-4-hydrogen-high', label: 'Gemini 4 Hydrogen (High)' },
+    { id: 'gemini-4-hydrogen-xhigh', label: 'Gemini 4 Hydrogen (XHigh)' },
+    { id: 'gemini-4-neon-low', label: 'Gemini 4 Neon (Low)' },
+    { id: 'gemini-4-neon-medium', label: 'Gemini 4 Neon (Medium)' },
+    { id: 'gemini-4-neon-high', label: 'Gemini 4 Neon (High)' },
+    { id: 'gemini-4-neon-xhigh', label: 'Gemini 4 Neon (XHigh)' },
+    { id: 'gemini-4-argon-low', label: 'Gemini 4 Argon (Low)' },
+    { id: 'gemini-4-argon-medium', label: 'Gemini 4 Argon (Medium)' },
+    { id: 'gemini-4-argon-high', label: 'Gemini 4 Argon (High)' },
+    { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
+    { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
+    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+    { id: 'gemini-pro-orchestrator-neon', label: 'Orchestrator (Neon)' },
+    { id: 'gemini-pro-orchestrator-g1-pro', label: 'Orchestrator (Argon)' },
+    { id: 'claude-sonnet-5-5-low', label: 'Claude Sonnet 5.5 (Low)' },
+    { id: 'claude-sonnet-5-5-medium', label: 'Claude Sonnet 5.5 (Medium)' },
+    { id: 'claude-sonnet-5-5-high', label: 'Claude Sonnet 5.5 (High)' },
+    { id: 'claude-opus-5-5-low', label: 'Claude Opus 5.5 (Low)' },
+    { id: 'claude-opus-5-5-medium', label: 'Claude Opus 5.5 (Medium)' },
+    { id: 'claude-opus-5-5-high', label: 'Claude Opus 5.5 (High)' },
+    { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)' },
+];
+
+const AGY_GROUP_ORDER = ['Gemini 4', 'Gemini 3.8 & Orchestrators', 'Partner Models (via agy)', 'Other Live Models'];
+
+function classifyAgyGroup(baseId) {
+    if (baseId.startsWith('gemini-4-')) {
+        return 'Gemini 4';
+    }
+    if (baseId.startsWith('gemini-3.8-') || baseId.includes('orchestrator')) {
+        return 'Gemini 3.8 & Orchestrators';
+    }
+    if (baseId.startsWith('claude-') || baseId.startsWith('gpt-')) {
+        return 'Partner Models (via agy)';
+    }
+    return 'Other Live Models';
+}
+
+function buildAgyModelFamilies(rawModels = []) {
+    const merged = new Map();
+    for (const item of DEFAULT_AGY_MODELS) {
+        merged.set(item.id, item.label);
+    }
+    if (Array.isArray(rawModels)) {
+        for (const item of rawModels) {
+            if (item && typeof item.id === 'string' && item.id.trim()) {
+                merged.set(item.id.trim(), (item.label || item.id).trim());
+            }
+        }
+    }
+
+    const families = new Map();
+    for (const [id, rawLabel] of merged.entries()) {
+        const tierMatch = id.match(/^(.*)-(low|medium|high|xhigh|max)$/i);
+        const cleanLabel = rawLabel.replace(/\s*\((?:Low|Medium|High|XHigh|Max)\)\s*$/i, '').trim() || id;
+        if (tierMatch) {
+            const baseId = tierMatch[1];
+            const tier = tierMatch[2].toLowerCase();
+            if (!families.has(baseId)) {
+                families.set(baseId, {
+                    baseId,
+                    label: cleanLabel,
+                    group: classifyAgyGroup(baseId),
+                    tiers: [],
+                    fixedId: null,
+                });
+            }
+            families.get(baseId).tiers.push({ tier, id });
+        } else if (!families.has(id)) {
+            families.set(id, {
+                baseId: id,
+                label: cleanLabel,
+                group: classifyAgyGroup(id),
+                tiers: [],
+                fixedId: id,
+            });
+        }
+    }
+
+    const result = Array.from(families.values());
+    for (const family of result) {
+        family.tiers.sort((a, b) => {
+            const ia = EFFORT_TIER_ORDER.indexOf(a.tier);
+            const ib = EFFORT_TIER_ORDER.indexOf(b.tier);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+        });
+    }
+    return result;
+}
+
+function resolveAgyModelSelection(modelId, families) {
+    if (!modelId || modelId === 'auto') {
+        return { mode: 'auto', family: null, tier: null };
+    }
+
+    for (const family of families) {
+        if (family.fixedId === modelId) {
+            return { mode: 'family', family, tier: null };
+        }
+        const matchedTier = family.tiers.find(t => t.id === modelId);
+        if (matchedTier) {
+            return { mode: 'family', family, tier: matchedTier.tier };
+        }
+    }
+
+    return { mode: 'custom', family: null, tier: null };
+}
+
 export class MainView extends LitElement {
     static styles = css`
         * {
@@ -23,17 +210,17 @@ export class MainView extends LitElement {
         }
 
         :host {
-            height: 100%;
+            min-height: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            padding: var(--space-xl) var(--space-lg);
+            justify-content: flex-start;
+            padding: var(--space-lg);
         }
 
         .form-wrapper {
             width: 100%;
-            max-width: 420px;
+            max-width: 540px;
             display: flex;
             flex-direction: column;
             gap: var(--space-md);
@@ -54,6 +241,194 @@ export class MainView extends LitElement {
             font-size: var(--font-size-sm);
             color: var(--text-muted);
             margin-bottom: var(--space-md);
+        }
+
+        .quick-settings-card {
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
+        .quick-settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-sm);
+        }
+
+        @media (max-width: 500px) {
+            .quick-settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ── Context Folder card ── */
+
+        .context-folder-card {
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .context-folder-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .context-folder-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-primary);
+        }
+
+        .context-folder-toggle input {
+            width: 15px;
+            height: 15px;
+            margin: 0;
+            padding: 0;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        .context-status-pill {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+        }
+
+        .context-status-pill.active {
+            border-color: rgba(34, 197, 94, 0.35);
+            background: rgba(34, 197, 94, 0.1);
+            color: #86efac;
+        }
+
+        .context-status-pill.rag {
+            border-color: rgba(59, 130, 246, 0.4);
+            background: rgba(59, 130, 246, 0.12);
+            color: #93c5fd;
+        }
+
+        .context-folder-path-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            background: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 5px 8px;
+        }
+
+        .context-folder-path {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            user-select: text;
+        }
+
+        .context-default-tag {
+            flex-shrink: 0;
+            font-size: 10px;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 5px;
+        }
+
+        .context-folder-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .context-action-btn {
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm);
+            padding: 4px 9px;
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                color var(--transition),
+                background var(--transition);
+        }
+
+        .context-action-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .context-action-btn:disabled {
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        .context-file-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .context-file-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            max-width: 100%;
+            padding: 2px 7px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-family: var(--font-mono);
+        }
+
+        .context-file-chip.warn {
+            border-color: rgba(212, 160, 23, 0.45);
+            background: rgba(212, 160, 23, 0.08);
+            color: var(--warning, #d4a017);
+        }
+
+        .context-file-chip-name {
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .context-file-chip-meta {
+            color: var(--text-muted);
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+
+        .context-folder-notice {
+            font-size: 11px;
+            color: var(--text-secondary);
         }
 
         /* ── Cloud promo card ── */
@@ -153,6 +528,8 @@ export class MainView extends LitElement {
             display: flex;
             flex-direction: column;
             gap: 2px;
+            min-width: 0;
+            flex: 1;
         }
 
         .config-summary-title {
@@ -164,11 +541,13 @@ export class MainView extends LitElement {
         .config-summary-description {
             font-size: var(--font-size-xs);
             color: var(--text-muted);
+            overflow-wrap: anywhere;
         }
 
         .config-chevron {
             width: 16px;
             height: 16px;
+            flex-shrink: 0;
             color: var(--text-muted);
             transition: transform var(--transition);
         }
@@ -681,6 +1060,264 @@ export class MainView extends LitElement {
             color: var(--warning);
             line-height: var(--line-height);
         }
+
+        /* ── CLI status cards ── */
+
+        .cli-status-bar {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .cli-status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+        }
+
+        .cli-refresh-btn {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            border-radius: var(--radius-sm);
+            padding: 3px 8px;
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                color var(--transition);
+        }
+
+        .cli-refresh-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .cli-refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .cli-status-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-sm);
+        }
+
+        .cli-status-card {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            padding: 9px 11px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+        }
+
+        .cli-status-card.active-primary {
+            border-color: rgba(59, 130, 246, 0.45);
+        }
+
+        .cli-status-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .cli-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--text-muted);
+        }
+
+        .cli-status-dot.ok {
+            background: var(--success, #22c55e);
+        }
+
+        .cli-status-dot.warn {
+            background: var(--warning, #d4a017);
+        }
+
+        .cli-status-dot.missing {
+            background: var(--danger, #ef4444);
+        }
+
+        .cli-status-name {
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+        }
+
+        .cli-status-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cli-error-banner {
+            padding: 10px 12px;
+            border: 1px solid rgba(239, 68, 68, 0.38);
+            border-radius: var(--radius-sm);
+            background: rgba(239, 68, 68, 0.08);
+            color: var(--danger, #ef4444);
+            font-size: var(--font-size-xs);
+            line-height: var(--line-height);
+        }
+
+        .cli-error-banner span.link {
+            color: var(--text-primary);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .whisper-warning {
+            padding: 8px 10px;
+            border: 1px solid rgba(212, 160, 23, 0.45);
+            border-radius: var(--radius-sm);
+            background: rgba(212, 160, 23, 0.08);
+            color: var(--warning, #d4a017);
+            font-size: var(--font-size-xs);
+            line-height: var(--line-height);
+        }
+
+        .whisper-fix-btn {
+            display: inline-block;
+            margin-top: 6px;
+            padding: 4px 10px;
+            border: 1px solid rgba(212, 160, 23, 0.5);
+            border-radius: var(--radius-sm);
+            background: rgba(212, 160, 23, 0.14);
+            color: var(--text-primary);
+            font-size: 11px;
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+
+        .whisper-fix-btn:hover {
+            background: rgba(212, 160, 23, 0.25);
+        }
+
+        .models-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+        }
+
+        .models-sync-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .model-card {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            background: var(--bg-app);
+        }
+
+        .model-card.primary {
+            border-color: rgba(59, 130, 246, 0.45);
+        }
+
+        .model-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .model-card-title-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .model-card-title {
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        .model-role-badge {
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            background: var(--bg-surface);
+        }
+
+        .model-role-badge.primary {
+            border-color: rgba(59, 130, 246, 0.45);
+            color: #93c5fd;
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .model-id-badge {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 2px 6px;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .effort-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .effort-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .effort-pill {
+            padding: 5px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--bg-surface);
+            color: var(--text-secondary);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                background var(--transition),
+                color var(--transition);
+        }
+
+        .effort-pill:hover {
+            border-color: var(--border-strong);
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .effort-pill.active {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.16);
+            color: var(--text-primary);
+        }
     `;
 
     static properties = {
@@ -688,6 +1325,8 @@ export class MainView extends LitElement {
         onExternalLink: { type: Function },
         selectedProfile: { type: String },
         onProfileChange: { type: Function },
+        selectedLanguage: { type: String },
+        onLanguageChange: { type: Function },
         isInitializing: { type: Boolean },
         whisperDownloading: { type: Boolean },
         downloadProgress: { type: Object },
@@ -709,6 +1348,32 @@ export class MainView extends LitElement {
         _useCustomLocalLlmModel: { state: true },
         _whisperModel: { state: true },
         _showLocalHelp: { state: true },
+        // CLI state
+        _cliPrimaryProvider: { state: true },
+        _cliFallbackEnabled: { state: true },
+        _cliClaudeModel: { state: true },
+        _cliClaudeEffort: { state: true },
+        _useCustomClaudeModel: { state: true },
+        _cliGeminiModel: { state: true },
+        _useCustomGeminiModel: { state: true },
+        _agyLiveModels: { state: true },
+        _loadingCliModels: { state: true },
+        _cliClaudePath: { state: true },
+        _cliGeminiPath: { state: true },
+        _cliUseSubscriptionAuth: { state: true },
+        _cliWhisperEnabled: { state: true },
+        _cliMicContextOnly: { state: true },
+        _audioMode: { state: true },
+        _selectedLanguage: { state: true },
+        _responseLanguage: { state: true },
+        _contextFolderEnabled: { state: true },
+        _contextFolderSummary: { state: true },
+        _loadingContextFolder: { state: true },
+        _contextFolderNotice: { state: true },
+        _cliStatus: { state: true },
+        _checkingCliStatus: { state: true },
+        _showCliHelp: { state: true },
+        _cliError: { state: true },
     };
 
     constructor() {
@@ -717,12 +1382,14 @@ export class MainView extends LitElement {
         this.onExternalLink = () => {};
         this.selectedProfile = 'interview';
         this.onProfileChange = () => {};
+        this.selectedLanguage = 'auto';
+        this.onLanguageChange = null;
         this.isInitializing = false;
         this.whisperDownloading = false;
         this.downloadProgress = { active: false, label: '', percentage: null };
         this.onCancelDownload = () => {};
 
-        this._mode = 'byok';
+        this._mode = 'cli';
         this._token = '';
         this._geminiKey = '';
         this._groqKey = '';
@@ -736,7 +1403,33 @@ export class MainView extends LitElement {
         this._showLocalHelp = false;
         this._localLlmModel = 'unsloth/Qwen3.5-4B-GGUF:Q4_K_M';
         this._useCustomLocalLlmModel = false;
-        this._whisperModel = 'tiny.en';
+        this._whisperModel = 'small-q5_1';
+
+        this._cliPrimaryProvider = 'claude';
+        this._cliFallbackEnabled = true;
+        this._cliClaudeModel = 'sonnet';
+        this._cliClaudeEffort = 'auto';
+        this._useCustomClaudeModel = false;
+        this._cliGeminiModel = 'gemini-4-hydrogen-low';
+        this._useCustomGeminiModel = false;
+        this._agyLiveModels = [];
+        this._loadingCliModels = false;
+        this._cliClaudePath = '';
+        this._cliGeminiPath = '';
+        this._cliUseSubscriptionAuth = true;
+        this._cliWhisperEnabled = true;
+        this._cliMicContextOnly = true;
+        this._audioMode = 'speaker_only';
+        this._selectedLanguage = 'auto';
+        this._responseLanguage = 'auto';
+        this._contextFolderEnabled = true;
+        this._contextFolderSummary = null;
+        this._loadingContextFolder = false;
+        this._contextFolderNotice = '';
+        this._cliStatus = null;
+        this._checkingCliStatus = false;
+        this._showCliHelp = false;
+        this._cliError = '';
 
         this._animId = null;
         this._time = 0;
@@ -755,8 +1448,8 @@ export class MainView extends LitElement {
                 cheatingDaddy.storage.getCredentials().catch(() => ({})),
             ]);
 
-            const storedMode = prefs.providerMode || 'byok';
-            this._mode = storedMode === 'cloud' ? 'byok' : storedMode;
+            const storedMode = prefs.providerMode || 'cli';
+            this._mode = storedMode === 'cloud' ? 'cli' : storedMode;
 
             if (storedMode === 'cloud') {
                 await cheatingDaddy.storage.updatePreference('providerMode', this._mode);
@@ -775,11 +1468,52 @@ export class MainView extends LitElement {
             // Load local AI settings
             this._localLlmModel = prefs.localLlmModel || 'unsloth/Qwen3.5-4B-GGUF:Q4_K_M';
             this._useCustomLocalLlmModel = !LOCAL_LLM_PRESETS.some(preset => preset.value === this._localLlmModel);
-            this._whisperModel = prefs.whisperModel || 'tiny.en';
+            this._whisperModel = prefs.whisperModel || 'small-q5_1';
+
+            // Load CLI settings
+            this._cliPrimaryProvider = prefs.cliPrimaryProvider || 'claude';
+            this._cliFallbackEnabled = prefs.cliFallbackEnabled ?? true;
+            this._cliClaudeModel = prefs.cliClaudeModel || 'sonnet';
+            this._cliClaudeEffort = prefs.cliClaudeEffort || 'auto';
+            this._useCustomClaudeModel = !CLAUDE_MODEL_PRESETS.some(preset => preset.value === this._cliClaudeModel);
+            this._cliGeminiModel = prefs.cliGeminiModel || 'gemini-4-hydrogen-low';
+            this._useCustomGeminiModel = resolveAgyModelSelection(this._cliGeminiModel, this._getAgyFamilies()).mode === 'custom';
+            this._cliClaudePath = prefs.cliClaudePath || '';
+            this._cliGeminiPath = prefs.cliGeminiPath || '';
+            this._cliUseSubscriptionAuth = prefs.cliUseSubscriptionAuth ?? true;
+            this._cliWhisperEnabled = prefs.cliWhisperEnabled ?? true;
+            this._cliMicContextOnly = prefs.cliMicContextOnly ?? true;
+            this._audioMode = prefs.audioMode || 'speaker_only';
+            this._selectedLanguage = prefs.selectedLanguage || this.selectedLanguage || 'auto';
+            this._responseLanguage = prefs.responseLanguage || 'auto';
+            this._contextFolderEnabled = prefs.contextFolderEnabled ?? true;
 
             this.requestUpdate();
+            this._refreshCliStatus();
+            this._refreshCliModels();
+            this._refreshContextFolder(false);
         } catch (e) {
             console.error('Error loading MainView storage:', e);
+        }
+    }
+
+    async _refreshCliStatus() {
+        if (!cheatingDaddy.checkCliStatus) return;
+        this._checkingCliStatus = true;
+        this.requestUpdate();
+        try {
+            const status = await cheatingDaddy.checkCliStatus({
+                claudePath: this._cliClaudePath,
+                geminiPath: this._cliGeminiPath,
+            });
+            if (status) {
+                this._cliStatus = status;
+            }
+        } catch (err) {
+            console.error('Error checking CLI status:', err);
+        } finally {
+            this._checkingCliStatus = false;
+            this.requestUpdate();
         }
     }
 
@@ -900,9 +1634,15 @@ export class MainView extends LitElement {
     }
 
     _handleKeydown(e) {
-        if (e.key === 'Escape' && this._showLocalHelp) {
-            this._closeLocalHelp();
-            return;
+        if (e.key === 'Escape') {
+            if (this._showLocalHelp) {
+                this._closeLocalHelp();
+                return;
+            }
+            if (this._showCliHelp) {
+                this._closeCliHelp();
+                return;
+            }
         }
 
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -918,7 +1658,11 @@ export class MainView extends LitElement {
         this._mode = mode;
         this._tokenError = false;
         this._keyError = false;
+        this._cliError = '';
         await cheatingDaddy.storage.updatePreference('providerMode', mode);
+        if (mode === 'cli') {
+            this._refreshCliStatus();
+        }
         this.requestUpdate();
     }
 
@@ -1001,6 +1745,308 @@ export class MainView extends LitElement {
         this.requestUpdate();
     }
 
+    async _saveCliPrimaryProvider(val) {
+        this._cliPrimaryProvider = val === 'gemini' ? 'gemini' : 'claude';
+        this._cliError = '';
+        await cheatingDaddy.storage.updatePreference('cliPrimaryProvider', this._cliPrimaryProvider);
+        this.requestUpdate();
+    }
+
+    async _saveCliFallbackEnabled(enabled) {
+        this._cliFallbackEnabled = Boolean(enabled);
+        await cheatingDaddy.storage.updatePreference('cliFallbackEnabled', this._cliFallbackEnabled);
+        this.requestUpdate();
+    }
+
+    async _saveCliUseSubscriptionAuth(enabled) {
+        this._cliUseSubscriptionAuth = Boolean(enabled);
+        await cheatingDaddy.storage.updatePreference('cliUseSubscriptionAuth', this._cliUseSubscriptionAuth);
+        this.requestUpdate();
+    }
+
+    async _saveCliWhisperEnabled(enabled) {
+        this._cliWhisperEnabled = Boolean(enabled);
+        await cheatingDaddy.storage.updatePreference('cliWhisperEnabled', this._cliWhisperEnabled);
+        this.requestUpdate();
+    }
+
+    async _saveAudioMode(val) {
+        this._audioMode = val;
+        await cheatingDaddy.storage.updatePreference('audioMode', val);
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    async _saveCliMicContextOnly(enabled) {
+        this._cliMicContextOnly = Boolean(enabled);
+        await cheatingDaddy.storage.updatePreference('cliMicContextOnly', this._cliMicContextOnly);
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    async _saveSelectedLanguage(val) {
+        this._selectedLanguage = val;
+        if (typeof this.onLanguageChange === 'function') {
+            await this.onLanguageChange(val);
+        } else {
+            await cheatingDaddy.storage.updatePreference('selectedLanguage', val);
+        }
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    async _saveProfile(val) {
+        this.selectedProfile = val;
+        if (typeof this.onProfileChange === 'function') {
+            await this.onProfileChange(val);
+        } else {
+            await cheatingDaddy.storage.updatePreference('selectedProfile', val);
+        }
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    async _saveResponseLanguage(val) {
+        this._responseLanguage = val;
+        await cheatingDaddy.storage.updatePreference('responseLanguage', val);
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    async _toggleContextFolder(enabled) {
+        this._contextFolderEnabled = Boolean(enabled);
+        this._contextFolderNotice = '';
+        await cheatingDaddy.storage.updatePreference('contextFolderEnabled', this._contextFolderEnabled);
+        await cheatingDaddy.refreshPreferencesCache?.();
+        if (this._contextFolderSummary) {
+            this._contextFolderSummary = { ...this._contextFolderSummary, enabled: this._contextFolderEnabled };
+        }
+        this.requestUpdate();
+    }
+
+    async _refreshContextFolder(force = false) {
+        if (!cheatingDaddy.contextFolder?.getSummary) return;
+        this._loadingContextFolder = true;
+        this.requestUpdate();
+        try {
+            const res = await cheatingDaddy.contextFolder.getSummary({ refresh: Boolean(force) });
+            if (res?.success && res.data) {
+                this._contextFolderSummary = res.data;
+                if (force) {
+                    this._contextFolderNotice = '';
+                }
+            } else if (res?.error) {
+                this._contextFolderNotice = res.error;
+            }
+        } catch (err) {
+            this._contextFolderNotice = err?.message || 'Failed to inspect context folder';
+        } finally {
+            this._loadingContextFolder = false;
+            this.requestUpdate();
+        }
+    }
+
+    async _chooseContextFolder() {
+        if (!cheatingDaddy.contextFolder?.choose) return;
+        try {
+            const res = await cheatingDaddy.contextFolder.choose();
+            if (res?.success && !res.canceled && res.data) {
+                this._contextFolderEnabled = true;
+                this._contextFolderSummary = res.data;
+                this._contextFolderNotice = '';
+                await cheatingDaddy.refreshPreferencesCache?.();
+                this.requestUpdate();
+            } else if (res?.error) {
+                this._contextFolderNotice = res.error;
+                this.requestUpdate();
+            }
+        } catch (err) {
+            this._contextFolderNotice = err?.message || 'Failed to choose folder';
+            this.requestUpdate();
+        }
+    }
+
+    async _openContextFolder() {
+        if (!cheatingDaddy.contextFolder?.open) return;
+        try {
+            const res = await cheatingDaddy.contextFolder.open();
+            if (!res?.success && res?.error) {
+                this._contextFolderNotice = res.error;
+                this.requestUpdate();
+            }
+        } catch (err) {
+            this._contextFolderNotice = err?.message || 'Failed to open folder';
+            this.requestUpdate();
+        }
+    }
+
+    async _addContextFiles() {
+        if (!cheatingDaddy.contextFolder?.addFiles) return;
+        try {
+            const res = await cheatingDaddy.contextFolder.addFiles();
+            if (res?.success && !res.canceled && res.data) {
+                this._contextFolderSummary = res.data;
+                const copiedCount = res.copied?.length || 0;
+                const skippedCount = res.skipped?.length || 0;
+                this._contextFolderNotice =
+                    skippedCount > 0 ? `Added ${copiedCount} file(s), skipped ${skippedCount}` : `Added ${copiedCount} file(s)`;
+                this.requestUpdate();
+            } else if (res?.error) {
+                this._contextFolderNotice = res.error;
+                this.requestUpdate();
+            }
+        } catch (err) {
+            this._contextFolderNotice = err?.message || 'Failed to add files';
+            this.requestUpdate();
+        }
+    }
+
+    async _resetDefaultContextFolder() {
+        if (!cheatingDaddy.contextFolder?.resetDefault) return;
+        try {
+            const res = await cheatingDaddy.contextFolder.resetDefault();
+            if (res?.success && res.data) {
+                this._contextFolderSummary = res.data;
+                this._contextFolderNotice = '';
+                await cheatingDaddy.refreshPreferencesCache?.();
+                this.requestUpdate();
+            } else if (res?.error) {
+                this._contextFolderNotice = res.error;
+                this.requestUpdate();
+            }
+        } catch (err) {
+            this._contextFolderNotice = err?.message || 'Failed to reset folder';
+            this.requestUpdate();
+        }
+    }
+
+    async _applyUkrainianWhisperPreset() {
+        this._whisperModel = 'small-q5_1';
+        this._selectedLanguage = 'uk-UA';
+        await cheatingDaddy.storage.updatePreference('whisperModel', 'small-q5_1');
+        if (typeof this.onLanguageChange === 'function') {
+            await this.onLanguageChange('uk-UA');
+        } else {
+            await cheatingDaddy.storage.updatePreference('selectedLanguage', 'uk-UA');
+        }
+        await cheatingDaddy.refreshPreferencesCache?.();
+        this.requestUpdate();
+    }
+
+    _getAgyFamilies() {
+        return buildAgyModelFamilies(this._agyLiveModels);
+    }
+
+    async _refreshCliModels() {
+        if (!cheatingDaddy.listCliModels) return;
+        this._loadingCliModels = true;
+        this.requestUpdate();
+        try {
+            const res = await cheatingDaddy.listCliModels({
+                geminiPath: this._cliGeminiPath,
+                useSubscriptionAuth: this._cliUseSubscriptionAuth,
+            });
+            if (res?.supported && Array.isArray(res.models) && res.models.length > 0) {
+                this._agyLiveModels = res.models;
+                const families = this._getAgyFamilies();
+                if (resolveAgyModelSelection(this._cliGeminiModel, families).mode !== 'custom') {
+                    this._useCustomGeminiModel = false;
+                }
+            }
+        } catch (e) {
+            console.error('Error loading CLI models:', e);
+        } finally {
+            this._loadingCliModels = false;
+            this.requestUpdate();
+        }
+    }
+
+    async _saveCliClaudeModel(val) {
+        this._cliClaudeModel = val;
+        await cheatingDaddy.storage.updatePreference('cliClaudeModel', val);
+        this.requestUpdate();
+    }
+
+    async _saveCliClaudeEffort(level) {
+        this._cliClaudeEffort = level;
+        await cheatingDaddy.storage.updatePreference('cliClaudeEffort', level);
+        this.requestUpdate();
+    }
+
+    async _selectCliClaudeModel(val) {
+        if (val === 'custom') {
+            this._useCustomClaudeModel = true;
+            this.requestUpdate();
+            return;
+        }
+        this._useCustomClaudeModel = false;
+        await this._saveCliClaudeModel(val);
+    }
+
+    async _saveCliGeminiModel(val) {
+        this._cliGeminiModel = val;
+        await cheatingDaddy.storage.updatePreference('cliGeminiModel', val);
+        this.requestUpdate();
+    }
+
+    async _selectAgyFamily(value) {
+        if (value === 'custom') {
+            this._useCustomGeminiModel = true;
+            this.requestUpdate();
+            return;
+        }
+        this._useCustomGeminiModel = false;
+        if (value === 'auto') {
+            await this._saveCliGeminiModel('auto');
+            return;
+        }
+
+        const families = this._getAgyFamilies();
+        const family = families.find(f => f.baseId === value);
+        if (!family) {
+            await this._saveCliGeminiModel(value);
+            return;
+        }
+        if (family.fixedId) {
+            await this._saveCliGeminiModel(family.fixedId);
+            return;
+        }
+
+        const currentSelection = resolveAgyModelSelection(this._cliGeminiModel, families);
+        const desiredTier = currentSelection.tier;
+        const nextTierObj =
+            (desiredTier && family.tiers.find(t => t.tier === desiredTier)) ||
+            family.tiers.find(t => t.tier === 'low') ||
+            family.tiers.find(t => t.tier === 'medium') ||
+            family.tiers[0];
+        if (nextTierObj) {
+            await this._saveCliGeminiModel(nextTierObj.id);
+        }
+    }
+
+    async _selectAgyTier(family, tier) {
+        if (!family) return;
+        const match = family.tiers.find(t => t.tier === tier);
+        if (match) {
+            this._useCustomGeminiModel = false;
+            await this._saveCliGeminiModel(match.id);
+        }
+    }
+
+    async _saveCliClaudePath(val) {
+        this._cliClaudePath = val;
+        this._cliError = '';
+        await cheatingDaddy.storage.updatePreference('cliClaudePath', val);
+        this.requestUpdate();
+    }
+
+    async _saveCliGeminiPath(val) {
+        this._cliGeminiPath = val;
+        this._cliError = '';
+        await cheatingDaddy.storage.updatePreference('cliGeminiPath', val);
+        this.requestUpdate();
+    }
+
     _handleProfileChange(e) {
         this.onProfileChange(e.target.value);
     }
@@ -1013,6 +2059,14 @@ export class MainView extends LitElement {
         this._showLocalHelp = false;
     }
 
+    _openCliHelp() {
+        this._showCliHelp = true;
+    }
+
+    _closeCliHelp() {
+        this._showCliHelp = false;
+    }
+
     _handleHelpDialogClick(e) {
         e.stopPropagation();
     }
@@ -1022,7 +2076,14 @@ export class MainView extends LitElement {
     _handleStart() {
         if (this.isInitializing || this.downloadProgress.active) return;
 
-        if (this._mode === 'byok') {
+        if (this._mode === 'cli') {
+            this._cliError = '';
+            if (this._cliStatus && !this._cliStatus.claude?.installed && !this._cliStatus.gemini?.installed) {
+                this._cliError = 'Neither Claude CLI nor Gemini CLI was found. Install at least one CLI or specify a custom path.';
+                this.requestUpdate();
+                return;
+            }
+        } else if (this._mode === 'byok') {
             if (!this._geminiKey.trim()) {
                 this._keyError = true;
                 this.requestUpdate();
@@ -1035,6 +2096,11 @@ export class MainView extends LitElement {
         }
 
         this.onStart();
+    }
+
+    triggerCliError(message = 'Could not start CLI session. Check CLI installation, custom path, or OAuth login status.') {
+        this._cliError = message;
+        this.requestUpdate();
     }
 
     triggerApiKeyError() {
@@ -1051,7 +2117,7 @@ export class MainView extends LitElement {
 
     _renderStartButton() {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const isDownloading = this._mode === 'local' && this.downloadProgress.active;
+        const isDownloading = (this._mode === 'local' || this._mode === 'cli') && this.downloadProgress.active;
         const percentage = this.downloadProgress.percentage;
         const hasPercentage = Number.isFinite(percentage);
 
@@ -1238,6 +2304,469 @@ export class MainView extends LitElement {
             <!-- Cloud promo intentionally removed from the active UI. -->
 
             <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('cli')}>Use CLI (Pro)</button>
+                <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
+            </div>
+        `;
+    }
+
+    _getWhisperModelShortLabel() {
+        if (this._whisperModel === 'small-q5_1') return 'Small Q5';
+        if (this._whisperModel === 'base-q5_1') return 'Base Q5';
+        if (this._whisperModel === 'large-v3-turbo-q5_0') return 'Large v3 Turbo';
+        return this._whisperModel;
+    }
+
+    _getAudioModeShortLabel() {
+        if (this._audioMode === 'mic_only') return 'Mic only';
+        if (this._audioMode === 'both') return 'Mic + System';
+        return 'System audio';
+    }
+
+    _renderCliAudioControls() {
+        const activeLanguage = this._selectedLanguage || this.selectedLanguage || 'auto';
+        const hasPresetLanguage = SPEECH_LANGUAGE_OPTIONS.some(option => option.value === activeLanguage);
+        const isEnglishOnlyModel = String(this._whisperModel || '').endsWith('.en');
+        const isNonEnglishOrAuto = !String(activeLanguage).toLowerCase().startsWith('en');
+        const isWeakMultilingualModel =
+            (this._whisperModel === 'tiny' || this._whisperModel === 'base' || this._whisperModel === 'base-q5_1') && isNonEnglishOrAuto;
+        const showWhisperWarning = (isEnglishOnlyModel || isWeakMultilingualModel) && isNonEnglishOrAuto;
+        const isHeavyTurboModel = this._whisperModel === 'large-v3-turbo-q5_0';
+
+        return html`
+            <div class="form-group">
+                <label class="form-label">Audio Input</label>
+                <select .value=${this._audioMode} @change=${e => this._saveAudioMode(e.target.value)}>
+                    ${AUDIO_INPUT_OPTIONS.map(
+                        option => html`<option value=${option.value} ?selected=${this._audioMode === option.value}>${option.label}</option>`
+                    )}
+                </select>
+                <div class="form-hint">Choose Microphone Only or Both if you are speaking; System Audio Only captures Zoom/Meet output.</div>
+            </div>
+
+            ${
+                this._audioMode === 'both'
+                    ? html`
+                          <label class="config-checkbox">
+                              <input
+                                  type="checkbox"
+                                  .checked=${this._cliMicContextOnly}
+                                  @change=${e => this._saveCliMicContextOnly(e.target.checked)}
+                              />
+                              <span class="config-checkbox-text">
+                                  <span class="config-summary-title">Silent microphone context (recommended for 1-on-1 calls)</span>
+                                  <span class="config-summary-description"
+                                      >Buffers your speech for context without changing the screen; click "Далі" during a session if you get
+                                      stuck</span
+                                  >
+                              </span>
+                          </label>
+                      `
+                    : ''
+            }
+
+            <div class="form-group">
+                <label class="form-label">Speech Language</label>
+                <select .value=${activeLanguage} @change=${e => this._saveSelectedLanguage(e.target.value)}>
+                    ${SPEECH_LANGUAGE_OPTIONS.map(
+                        option => html`<option value=${option.value} ?selected=${activeLanguage === option.value}>${option.label}</option>`
+                    )}
+                    ${!hasPresetLanguage && activeLanguage ? html`<option value=${activeLanguage} selected>Custom (${activeLanguage})</option>` : ''}
+                </select>
+                <div class="form-hint">Pick Ukrainian (uk-UA) for best Ukrainian accuracy, or Auto-detect for mixed speech.</div>
+            </div>
+
+            ${this._renderWhisperSelect()}
+            ${
+                showWhisperWarning
+                    ? html`
+                          <div class="whisper-warning">
+                              ${
+                                  isEnglishOnlyModel
+                                      ? `English-only Whisper model (${this._whisperModel}) cannot transcribe ${activeLanguage === 'auto' ? 'multilingual / Ukrainian' : activeLanguage} speech accurately.`
+                                      : `Model "${this._whisperModel}" can misclassify Ukrainian${activeLanguage === 'auto' ? ' (especially with Auto-detect)' : ''}. Switch to Small Q5 + Ukrainian (uk-UA) for fast, accurate recognition.`
+                              }
+                              <div>
+                                  <button class="whisper-fix-btn" @click=${() => this._applyUkrainianWhisperPreset()}>
+                                      Use Small Q5 + Ukrainian (uk-UA)
+                                  </button>
+                              </div>
+                          </div>
+                      `
+                    : ''
+            }
+            ${isHeavyTurboModel ? html` <div class="form-hint">Best Ukrainian accuracy (~1.1s on Vulkan GPU, ~6s on CPU-only).</div> ` : ''}
+        `;
+    }
+
+    _renderWhisperSelect() {
+        return html`
+            <div class="form-group">
+                <div class="whisper-label-row">
+                    <label class="form-label">Whisper Model</label>
+                    ${this.whisperDownloading ? html`<div class="whisper-spinner"></div>` : ''}
+                </div>
+                <select .value=${this._whisperModel} @change=${e => this._saveWhisperModel(e.target.value)}>
+                    ${WHISPER_MODEL_OPTIONS.map(
+                        option => html`<option value=${option.value} ?selected=${this._whisperModel === option.value}>${option.label}</option>`
+                    )}
+                </select>
+                <div class="form-hint">${this.whisperDownloading ? 'Downloading model...' : 'Downloaded automatically on first use'}</div>
+            </div>
+        `;
+    }
+
+    _getCliStatusBadge(status) {
+        if (!status) {
+            return { dotClass: 'warn', label: 'Checking...' };
+        }
+        if (!status.installed) {
+            return { dotClass: 'missing', label: 'Not installed' };
+        }
+        if (status.authStatus === 'authenticated') {
+            return { dotClass: 'ok', label: status.version ? `Ready · ${status.version}` : 'Ready' };
+        }
+        if (status.authStatus === 'unauthenticated') {
+            return { dotClass: 'warn', label: 'Login required' };
+        }
+        return { dotClass: 'ok', label: status.version ? `Installed · ${status.version}` : 'Installed' };
+    }
+
+    _renderCliStatusBar() {
+        const claudeStatus = this._cliStatus?.claude || null;
+        const geminiStatus = this._cliStatus?.gemini || null;
+        const claudeBadge = this._getCliStatusBadge(claudeStatus);
+        const geminiBadge = this._getCliStatusBadge(geminiStatus);
+
+        return html`
+            <div class="cli-status-bar">
+                <div class="cli-status-header">
+                    <span class="form-label">CLI Availability</span>
+                    <button class="cli-refresh-btn" ?disabled=${this._checkingCliStatus} @click=${() => this._refreshCliStatus()}>
+                        ${this._checkingCliStatus ? 'Checking...' : 'Refresh'}
+                    </button>
+                </div>
+                <div class="cli-status-cards">
+                    <div class="cli-status-card ${this._cliPrimaryProvider === 'claude' ? 'active-primary' : ''}">
+                        <div class="cli-status-title-row">
+                            <span class="cli-status-dot ${claudeBadge.dotClass}"></span>
+                            <span class="cli-status-name">Claude CLI</span>
+                        </div>
+                        <div class="cli-status-meta" title=${claudeStatus?.resolvedPath || claudeBadge.label}>${claudeBadge.label}</div>
+                    </div>
+                    <div class="cli-status-card ${this._cliPrimaryProvider === 'gemini' ? 'active-primary' : ''}">
+                        <div class="cli-status-title-row">
+                            <span class="cli-status-dot ${geminiBadge.dotClass}"></span>
+                            <span class="cli-status-name">${geminiStatus?.engine === 'agy' ? 'Gemini (agy)' : 'Gemini CLI'}</span>
+                        </div>
+                        <div class="cli-status-meta" title=${geminiStatus?.resolvedPath || geminiBadge.label}>${geminiBadge.label}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    _renderCliModelsSection() {
+        const families = this._getAgyFamilies();
+        const selection = resolveAgyModelSelection(this._cliGeminiModel, families);
+        const agySelectValue = this._useCustomGeminiModel
+            ? 'custom'
+            : selection.mode === 'auto'
+              ? 'auto'
+              : selection.mode === 'family'
+                ? selection.family.baseId
+                : 'custom';
+        const isGeminiPrimary = this._cliPrimaryProvider === 'gemini';
+        const isClaudePrimary = this._cliPrimaryProvider === 'claude';
+        const totalLiveModels = this._agyLiveModels.length;
+
+        return html`
+            <details class="config-section" open>
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">AI Models &amp; Effort</span>
+                        <span class="config-summary-description"
+                            >Google: ${this._cliGeminiModel} · Claude:
+                            ${this._cliClaudeModel}${this._cliClaudeEffort !== 'auto' ? ` (${this._cliClaudeEffort})` : ''}</span
+                        >
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="models-toolbar">
+                        <span class="models-sync-meta"
+                            >${
+                                totalLiveModels > 0
+                                    ? `Synced live: ${totalLiveModels} Google/agy models`
+                                    : `${DEFAULT_AGY_MODELS.length} Google/agy presets loaded`
+                            }</span
+                        >
+                        <button class="cli-refresh-btn" ?disabled=${this._loadingCliModels} @click=${() => this._refreshCliModels()}>
+                            ${this._loadingCliModels ? 'Refreshing...' : 'Refresh models'}
+                        </button>
+                    </div>
+
+                    <div class="model-card ${isGeminiPrimary ? 'primary' : ''}">
+                        <div class="model-card-header">
+                            <div class="model-card-title-row">
+                                <span class="model-card-title">Google AI Pro (agy)</span>
+                                <span class="model-role-badge ${isGeminiPrimary ? 'primary' : ''}">${isGeminiPrimary ? 'Primary' : 'Fallback'}</span>
+                            </div>
+                            <span class="model-id-badge" title=${this._cliGeminiModel}>${this._cliGeminiModel}</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Model Family</label>
+                            <select .value=${agySelectValue} @change=${e => this._selectAgyFamily(e.target.value)}>
+                                ${AGY_GROUP_ORDER.map(groupName => {
+                                    const groupFamilies = families.filter(f => f.group === groupName);
+                                    if (groupFamilies.length === 0) return '';
+                                    return html`
+                                        <optgroup label=${groupName}>
+                                            ${groupFamilies.map(
+                                                family =>
+                                                    html`<option
+                                                        value=${family.baseId}
+                                                        ?selected=${
+                                                            !this._useCustomGeminiModel &&
+                                                            selection.mode === 'family' &&
+                                                            selection.family?.baseId === family.baseId
+                                                        }
+                                                    >
+                                                        ${family.baseId === 'gemini-4-hydrogen' ? `${family.label} · Recommended` : family.label}
+                                                    </option>`
+                                            )}
+                                        </optgroup>
+                                    `;
+                                })}
+                                <option value="auto" ?selected=${!this._useCustomGeminiModel && selection.mode === 'auto'}>Auto (CLI default)</option>
+                                <option value="custom" ?selected=${this._useCustomGeminiModel}>Custom model ID…</option>
+                            </select>
+                        </div>
+
+                        ${
+                            !this._useCustomGeminiModel && selection.mode === 'family' && selection.family.tiers.length > 0
+                                ? html`
+                                      <div class="effort-row">
+                                          <span class="form-label">Reasoning Strength</span>
+                                          <div class="effort-pills">
+                                              ${selection.family.tiers.map(
+                                                  t =>
+                                                      html`<button
+                                                          type="button"
+                                                          class="effort-pill ${selection.tier === t.tier ? 'active' : ''}"
+                                                          @click=${() => this._selectAgyTier(selection.family, t.tier)}
+                                                      >
+                                                          ${EFFORT_TIER_LABELS[t.tier] || t.tier}
+                                                      </button>`
+                                              )}
+                                          </div>
+                                          <div class="form-hint">Low = fastest · Medium = balanced · High/XHigh = deeper reasoning</div>
+                                      </div>
+                                  `
+                                : !this._useCustomGeminiModel && selection.mode === 'family' && selection.family.fixedId
+                                  ? html`<div class="form-hint">Fixed-tier model preset (${selection.family.fixedId}).</div>`
+                                  : ''
+                        }
+                        ${
+                            this._useCustomGeminiModel
+                                ? html`
+                                      <input
+                                          type="text"
+                                          placeholder="e.g. gemini-4-hydrogen-medium"
+                                          .value=${this._cliGeminiModel}
+                                          @input=${e => this._saveCliGeminiModel(e.target.value)}
+                                      />
+                                  `
+                                : ''
+                        }
+                    </div>
+
+                    <div class="model-card ${isClaudePrimary ? 'primary' : ''}">
+                        <div class="model-card-header">
+                            <div class="model-card-title-row">
+                                <span class="model-card-title">Claude Code CLI</span>
+                                <span class="model-role-badge ${isClaudePrimary ? 'primary' : ''}">${isClaudePrimary ? 'Primary' : 'Fallback'}</span>
+                            </div>
+                            <span class="model-id-badge" title=${this._cliClaudeModel}
+                                >${this._cliClaudeModel}${this._cliClaudeEffort !== 'auto' ? ` · ${this._cliClaudeEffort}` : ''}</span
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Model</label>
+                            <select
+                                .value=${this._useCustomClaudeModel ? 'custom' : this._cliClaudeModel}
+                                @change=${e => this._selectCliClaudeModel(e.target.value)}
+                            >
+                                ${CLAUDE_MODEL_PRESETS.map(
+                                    preset =>
+                                        html`<option
+                                            value=${preset.value}
+                                            ?selected=${!this._useCustomClaudeModel && this._cliClaudeModel === preset.value}
+                                        >
+                                            ${preset.label}
+                                        </option>`
+                                )}
+                                <option value="custom" ?selected=${this._useCustomClaudeModel}>Custom Claude model…</option>
+                            </select>
+                            ${
+                                this._useCustomClaudeModel
+                                    ? html`
+                                          <input
+                                              type="text"
+                                              placeholder="e.g. claude-sonnet-4-6"
+                                              .value=${this._cliClaudeModel}
+                                              @input=${e => this._saveCliClaudeModel(e.target.value)}
+                                          />
+                                      `
+                                    : ''
+                            }
+                        </div>
+
+                        <div class="effort-row">
+                            <span class="form-label">Thinking Effort (--effort)</span>
+                            <div class="effort-pills">
+                                ${CLAUDE_EFFORT_OPTIONS.map(
+                                    opt =>
+                                        html`<button
+                                            type="button"
+                                            class="effort-pill ${this._cliClaudeEffort === opt.value ? 'active' : ''}"
+                                            @click=${() => this._saveCliClaudeEffort(opt.value)}
+                                        >
+                                            ${opt.label}
+                                        </button>`
+                                )}
+                            </div>
+                            <div class="form-hint">Auto = CLI default · Low = fastest · Medium = balanced · High/XHigh/Max = deepest reasoning</div>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        `;
+    }
+
+    _renderCliMode() {
+        return html`
+            ${this._renderCliStatusBar()}
+            ${
+                this._cliError
+                    ? html`
+                          <div class="cli-error-banner">
+                              ${this._cliError}
+                              <span class="link" @click=${this._openCliHelp}> Setup guide</span>
+                          </div>
+                      `
+                    : ''
+            }
+
+            <details class="config-section" open>
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">CLI Provider</span>
+                        <span class="config-summary-description">Primary subscription & auto-fallback</span>
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="form-group">
+                        <label class="form-label">Primary CLI</label>
+                        <select .value=${this._cliPrimaryProvider} @change=${e => this._saveCliPrimaryProvider(e.target.value)}>
+                            <option value="claude" ?selected=${this._cliPrimaryProvider === 'claude'}>Claude Code CLI (Claude Pro)</option>
+                            <option value="gemini" ?selected=${this._cliPrimaryProvider === 'gemini'}>Google AI Pro (Antigravity CLI / agy)</option>
+                        </select>
+                    </div>
+
+                    <label class="config-checkbox">
+                        <input type="checkbox" .checked=${this._cliFallbackEnabled} @change=${e => this._saveCliFallbackEnabled(e.target.checked)} />
+                        <span class="config-checkbox-text">
+                            <span class="config-summary-title">Auto-fallback to secondary CLI</span>
+                            <span class="config-summary-description">Switch automatically on rate limits or errors</span>
+                        </span>
+                    </label>
+
+                    <label class="config-checkbox">
+                        <input
+                            type="checkbox"
+                            .checked=${this._cliUseSubscriptionAuth}
+                            @change=${e => this._saveCliUseSubscriptionAuth(e.target.checked)}
+                        />
+                        <span class="config-checkbox-text">
+                            <span class="config-summary-title">Use subscription login (OAuth)</span>
+                            <span class="config-summary-description">Ignore ANTHROPIC_API_KEY / GEMINI_API_KEY env vars</span>
+                        </span>
+                    </label>
+                </div>
+            </details>
+
+            ${this._renderCliModelsSection()}
+
+            <details class="config-section" open>
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">Voice Transcription</span>
+                        <span class="config-summary-description"
+                            >${
+                                this._cliWhisperEnabled
+                                    ? `Whisper (${this._getWhisperModelShortLabel()}) · ${this._getAudioModeShortLabel()} · ${this._selectedLanguage || this.selectedLanguage || 'auto'}`
+                                    : 'Disabled (text & screen only)'
+                            }</span
+                        >
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <label class="config-checkbox">
+                        <input type="checkbox" .checked=${this._cliWhisperEnabled} @change=${e => this._saveCliWhisperEnabled(e.target.checked)} />
+                        <span class="config-checkbox-text">
+                            <span class="config-summary-title">Enable local Whisper voice transcription</span>
+                            <span class="config-summary-description">Offline speech-to-text via whisper.cpp (supports Ukrainian)</span>
+                        </span>
+                    </label>
+                    ${this._cliWhisperEnabled ? this._renderCliAudioControls() : ''}
+                </div>
+            </details>
+
+            <details class="config-section">
+                <summary class="config-summary">
+                    <span class="config-summary-text">
+                        <span class="config-summary-title">Custom CLI Executable Paths</span>
+                        <span class="config-summary-description">Optional manual overrides for claude / agy binaries</span>
+                    </span>
+                    ${this._renderConfigChevron()}
+                </summary>
+                <div class="config-content">
+                    <div class="form-group">
+                        <label class="form-label">Claude Executable Path (optional)</label>
+                        <input
+                            type="text"
+                            placeholder="Auto-detected from PATH"
+                            .value=${this._cliClaudePath}
+                            @input=${e => this._saveCliClaudePath(e.target.value)}
+                            @blur=${() => this._refreshCliStatus()}
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Google / agy Executable Path (optional)</label>
+                        <input
+                            type="text"
+                            placeholder="Auto-detected from PATH"
+                            .value=${this._cliGeminiPath}
+                            @input=${e => this._saveCliGeminiPath(e.target.value)}
+                            @blur=${() => {
+                                this._refreshCliStatus();
+                                this._refreshCliModels();
+                            }}
+                        />
+                    </div>
+                </div>
+            </details>
+
+            ${this._renderStartButton()} ${this._renderDivider()}
+
+            <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
                 <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
             </div>
         `;
@@ -1290,20 +2819,7 @@ export class MainView extends LitElement {
                     </span>
                     ${this._renderConfigChevron()}
                 </summary>
-                <div class="config-content">
-                    <div class="form-group">
-                        <div class="whisper-label-row">
-                            <label class="form-label">Whisper Model</label>
-                            ${this.whisperDownloading ? html`<div class="whisper-spinner"></div>` : ''}
-                        </div>
-                        <select .value=${this._whisperModel} @change=${e => this._saveWhisperModel(e.target.value)}>
-                            <option value="tiny.en" ?selected=${this._whisperModel === 'tiny.en'}>Tiny English (75 MB, fastest)</option>
-                            <option value="base.en" ?selected=${this._whisperModel === 'base.en'}>Base English (142 MB)</option>
-                            <option value="small.en" ?selected=${this._whisperModel === 'small.en'}>Small English (466 MB, most accurate)</option>
-                        </select>
-                        <div class="form-hint">${this.whisperDownloading ? 'Downloading model...' : 'Downloaded automatically on first use'}</div>
-                    </div>
-                </div>
+                <div class="config-content">${this._renderWhisperSelect()}</div>
             </details>
 
             ${this._renderStartButton()} ${this._renderDivider()}
@@ -1311,12 +2827,140 @@ export class MainView extends LitElement {
             <!-- Cloud promo intentionally removed from the active UI. -->
 
             <div class="mode-links">
+                <button class="mode-link" @click=${() => this._saveMode('cli')}>Use CLI (Pro)</button>
                 <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
             </div>
         `;
     }
 
     // ── Main render ──
+
+    _renderSessionQuickSettings() {
+        const activeProfile = this.selectedProfile || 'interview';
+        const activeResponseLanguage = this._responseLanguage || 'auto';
+
+        return html`
+            <div class="quick-settings-card">
+                <div class="quick-settings-grid">
+                    <div class="form-group">
+                        <label class="form-label">Preset</label>
+                        <select .value=${activeProfile} @change=${e => this._saveProfile(e.target.value)}>
+                            ${PROFILE_OPTIONS.map(
+                                option => html`<option value=${option.value} ?selected=${activeProfile === option.value}>${option.label}</option>`
+                            )}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Response Language</label>
+                        <select .value=${activeResponseLanguage} @change=${e => this._saveResponseLanguage(e.target.value)}>
+                            ${RESPONSE_LANGUAGE_OPTIONS.map(
+                                option =>
+                                    html`<option value=${option.value} ?selected=${activeResponseLanguage === option.value}>${option.label}</option>`
+                            )}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-hint">AI replies in this language unless the task explicitly asks for another.</div>
+            </div>
+        `;
+    }
+
+    _formatCompactChars(chars) {
+        const count = Number(chars) || 0;
+        if (count >= 1000) {
+            return `${(count / 1000).toFixed(count >= 10000 ? 0 : 1)}k chars`;
+        }
+        return `${count} chars`;
+    }
+
+    _renderContextFolderCard() {
+        const summary = this._contextFolderSummary;
+        const enabled = this._contextFolderEnabled;
+        const files = Array.isArray(summary?.files) ? summary.files : [];
+        const visibleFiles = files.slice(0, 6);
+        const hiddenCount = Math.max(0, files.length - visibleFiles.length);
+        const isRag = enabled && summary?.mode === 'rag';
+        const isInline = enabled && summary?.mode === 'inline';
+
+        let pillText = 'Empty';
+        let pillClass = '';
+        if (!enabled) {
+            pillText = 'Off';
+        } else if (isRag) {
+            pillText = `${summary.loadedFileCount} files · ${this._formatCompactChars(summary.totalChars)} · Smart search`;
+            pillClass = 'rag';
+        } else if (isInline) {
+            pillText = `${summary.loadedFileCount} ${summary.loadedFileCount === 1 ? 'file' : 'files'} · ${this._formatCompactChars(summary.totalChars)} · Full`;
+            pillClass = 'active';
+        } else if (summary?.totalFileCount > 0) {
+            pillText = `${summary.totalFileCount} file(s) unreadable`;
+        }
+
+        return html`
+            <div class="context-folder-card">
+                <div class="context-folder-header">
+                    <label class="context-folder-toggle">
+                        <input type="checkbox" .checked=${this._contextFolderEnabled} @change=${e => this._toggleContextFolder(e.target.checked)} />
+                        Context Folder
+                    </label>
+                    <span class="context-status-pill ${pillClass}">${this._loadingContextFolder ? 'Scanning...' : pillText}</span>
+                </div>
+
+                ${
+                    summary?.folderPath
+                        ? html`
+                              <div class="context-folder-path-row">
+                                  <span class="context-folder-path" title=${summary.folderPath}>${summary.folderPath}</span>
+                                  ${summary.isDefault ? html`<span class="context-default-tag">Default folder</span>` : ''}
+                              </div>
+                          `
+                        : ''
+                }
+
+                <div class="context-folder-actions">
+                    <button type="button" class="context-action-btn" @click=${() => this._addContextFiles()}>+ Add Files</button>
+                    <button type="button" class="context-action-btn" @click=${() => this._openContextFolder()}>Open Folder</button>
+                    <button type="button" class="context-action-btn" @click=${() => this._chooseContextFolder()}>Choose Folder</button>
+                    <button
+                        type="button"
+                        class="context-action-btn"
+                        ?disabled=${this._loadingContextFolder}
+                        @click=${() => this._refreshContextFolder(true)}
+                    >
+                        Refresh
+                    </button>
+                    ${
+                        summary && !summary.isDefault
+                            ? html`<button type="button" class="context-action-btn" @click=${() => this._resetDefaultContextFolder()}>
+                                  Default
+                              </button>`
+                            : ''
+                    }
+                </div>
+
+                ${
+                    visibleFiles.length > 0
+                        ? html`
+                              <div class="context-file-chips">
+                                  ${visibleFiles.map(file => {
+                                      const isWarn = file.status !== 'loaded';
+                                      const metaText = isWarn ? file.status : file.unitsLabel || this._formatCompactChars(file.charCount);
+                                      return html`
+                                          <span class="context-file-chip ${isWarn ? 'warn' : ''}" title=${file.reason || file.relativePath}>
+                                              <span class="context-file-chip-name">${file.name}</span>
+                                              <span class="context-file-chip-meta">${metaText}</span>
+                                          </span>
+                                      `;
+                                  })}
+                                  ${hiddenCount > 0 ? html`<span class="context-file-chip">+${hiddenCount} more</span>` : ''}
+                              </div>
+                          `
+                        : html`<div class="form-hint">Drop PDF, PPTX, DOCX, MD, TXT — slides, docs, exam tickets.</div>`
+                }
+                ${this._contextFolderNotice ? html`<div class="context-folder-notice">${this._contextFolderNotice}</div>` : ''}
+            </div>
+        `;
+    }
 
     render() {
         const helpIcon = html`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
@@ -1329,24 +2973,89 @@ export class MainView extends LitElement {
             <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" />
         </svg>`;
 
+        const subtitleMap = {
+            cli: 'Use Claude Pro & Google AI Pro CLI subscriptions',
+            byok: 'Bring your own API keys',
+            local: 'Run models locally on your machine',
+        };
+
         return html`
             <div class="form-wrapper">
                 ${
-                    this._mode === 'local'
+                    this._mode === 'cli'
                         ? html`
                               <div class="title-row">
-                                  <div class="page-title">Cheating Daddy <span class="mode-suffix">Local AI</span></div>
-                                  <button class="help-btn" @click=${this._openLocalHelp} aria-label="Open Local AI help">${helpIcon}</button>
+                                  <div class="page-title">Cheating Daddy <span class="mode-suffix">CLI</span></div>
+                                  <button class="help-btn" @click=${this._openCliHelp} aria-label="Open CLI setup help">${helpIcon}</button>
                               </div>
                           `
-                        : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `
+                        : this._mode === 'local'
+                          ? html`
+                                <div class="title-row">
+                                    <div class="page-title">Cheating Daddy <span class="mode-suffix">Local AI</span></div>
+                                    <button class="help-btn" @click=${this._openLocalHelp} aria-label="Open Local AI help">${helpIcon}</button>
+                                </div>
+                            `
+                          : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `
                 }
-                <div class="page-subtitle">${this._mode === 'byok' ? 'Bring your own API keys' : 'Run models locally on your machine'}</div>
+                <div class="page-subtitle">${subtitleMap[this._mode] || subtitleMap.cli}</div>
+
+                ${this._renderSessionQuickSettings()} ${this._renderContextFolderCard()}
 
                 <!-- Cloud mode render branch intentionally disabled. -->
-                ${this._mode === 'byok' ? this._renderByokMode() : ''} ${this._mode === 'local' ? this._renderLocalMode() : ''}
+                ${this._mode === 'cli' ? this._renderCliMode() : ''} ${this._mode === 'byok' ? this._renderByokMode() : ''}
+                ${this._mode === 'local' ? this._renderLocalMode() : ''}
             </div>
+            ${this._mode === 'cli' && this._showCliHelp ? this._renderCliHelp(closeIcon) : ''}
             ${this._mode === 'local' && this._showLocalHelp ? this._renderLocalHelp(closeIcon) : ''}
+        `;
+    }
+
+    _renderCliHelp(closeIcon) {
+        return html`
+            <div class="help-dialog-backdrop" @click=${this._closeCliHelp}>
+                <section class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="cli-help-title" @click=${this._handleHelpDialogClick}>
+                    <div class="help-dialog-header">
+                        <div id="cli-help-title" class="help-dialog-title">CLI Subscription Setup</div>
+                        <button class="help-btn" @click=${this._closeCliHelp} aria-label="Close CLI setup help">${closeIcon}</button>
+                    </div>
+
+                    <div class="help-content">
+                        <div class="help-section">
+                            <div class="help-section-title">1. Claude Code CLI (Claude Pro / Max)</div>
+                            <div class="help-section-text">Install in PowerShell (Windows) or via npm, then run once to sign in:</div>
+                            <code class="help-code">irm https://claude.ai/install.ps1 | iex</code>
+                            <code class="help-code">npm install -g @anthropic-ai/claude-code && claude</code>
+                        </div>
+
+                        <div class="help-section">
+                            <div class="help-section-title">2. Google Antigravity CLI — agy (Google AI Pro)</div>
+                            <div class="help-section-text">
+                                Install in PowerShell (Windows), then run once to sign in with your Google AI Pro account:
+                            </div>
+                            <code class="help-code">irm https://antigravity.google/cli/install.ps1 | iex</code>
+                            <code class="help-code">agy</code>
+                        </div>
+
+                        <div class="help-section">
+                            <div class="help-section-title">3. Live Switching & Auto-Fallback</div>
+                            <div class="help-section-text">
+                                During a session, click the <strong>[Claude ⇄]</strong> / <strong>[Gemini ⇄]</strong> badge in the top bar to switch
+                                providers at any time. If one CLI hits a subscription quota limit, the other takes over automatically with
+                                conversation context preserved.
+                            </div>
+                        </div>
+
+                        <div class="help-section">
+                            <div class="help-section-title">4. Local Whisper Voice Transcription</div>
+                            <div class="help-section-text">
+                                Speech is transcribed locally with whisper.cpp (no external STT API keys required). Choose a multilingual model (e.g.
+                                <strong>Base Multilingual</strong>) and select <strong>Ukrainian</strong> or <strong>Auto-detect</strong> in Settings.
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
         `;
     }
 

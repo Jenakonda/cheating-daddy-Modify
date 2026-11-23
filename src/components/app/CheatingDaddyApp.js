@@ -6,7 +6,6 @@ import { HistoryView } from '../views/HistoryView.js';
 import { AssistantView } from '../views/AssistantView.js';
 import { OnboardingView } from '../views/OnboardingView.js';
 import { AICustomizeView } from '../views/AICustomizeView.js';
-import { FeedbackView } from '../views/FeedbackView.js';
 
 export class CheatingDaddyApp extends LitElement {
     static styles = css`
@@ -244,6 +243,7 @@ export class CheatingDaddyApp extends LitElement {
 
         .content {
             flex: 1;
+            min-height: 0;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -256,6 +256,7 @@ export class CheatingDaddyApp extends LitElement {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            flex-shrink: 0;
             padding: 0 var(--space-md);
             background: var(--bg-surface);
             border-bottom: 1px solid var(--border);
@@ -327,6 +328,57 @@ export class CheatingDaddyApp extends LitElement {
             color: var(--text-primary);
         }
 
+        .provider-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            font-size: var(--font-size-xs);
+            font-family: var(--font-mono);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                color var(--transition),
+                background var(--transition);
+        }
+
+        .provider-pill:hover:not(:disabled) {
+            border-color: var(--accent);
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .provider-pill:disabled {
+            cursor: default;
+            opacity: 0.7;
+        }
+
+        .continue-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(59, 130, 246, 0.45);
+            background: rgba(59, 130, 246, 0.14);
+            color: var(--text-primary);
+            font-size: var(--font-size-xs);
+            font-family: var(--font-mono);
+            cursor: pointer;
+            transition:
+                border-color var(--transition),
+                background var(--transition);
+        }
+
+        .continue-pill:hover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.25);
+        }
+
         /* Content inner */
         .content-inner {
             flex: 1;
@@ -335,6 +387,7 @@ export class CheatingDaddyApp extends LitElement {
         }
 
         .content-inner.live {
+            min-height: 0;
             overflow: hidden;
             display: flex;
             flex-direction: column;
@@ -388,6 +441,9 @@ export class CheatingDaddyApp extends LitElement {
         _updateAvailable: { state: true },
         _whisperDownloading: { state: true },
         _localAiDownloadProgress: { state: true },
+        _activeCliProvider: { state: true },
+        _cliAvailableProviders: { state: true },
+        _bufferedCandidateCount: { state: true },
     };
 
     constructor() {
@@ -398,7 +454,7 @@ export class CheatingDaddyApp extends LitElement {
         this.isRecording = false;
         this.sessionActive = false;
         this.selectedProfile = 'interview';
-        this.selectedLanguage = 'en-US';
+        this.selectedLanguage = 'auto';
         this.selectedScreenshotInterval = '5';
         this.selectedImageQuality = 'medium';
         this.layoutMode = 'normal';
@@ -414,6 +470,9 @@ export class CheatingDaddyApp extends LitElement {
         this._updateAvailable = false;
         this._whisperDownloading = false;
         this._localAiDownloadProgress = { active: false, label: '', percentage: null };
+        this._activeCliProvider = null;
+        this._cliAvailableProviders = { claude: false, gemini: false };
+        this._bufferedCandidateCount = 0;
         this._localVersion = '';
 
         this._loadFromStorage();
@@ -449,7 +508,7 @@ export class CheatingDaddyApp extends LitElement {
 
             this.currentView = config.onboarded ? 'main' : 'onboarding';
             this.selectedProfile = prefs.selectedProfile || 'interview';
-            this.selectedLanguage = prefs.selectedLanguage || 'en-US';
+            this.selectedLanguage = prefs.selectedLanguage || 'auto';
             this.selectedScreenshotInterval = prefs.selectedScreenshotInterval || '5';
             this.selectedImageQuality = prefs.selectedImageQuality || 'medium';
             this.layoutMode = config.layout || 'normal';
@@ -481,6 +540,17 @@ export class CheatingDaddyApp extends LitElement {
             ipcRenderer.on('local-ai-download-progress', (_, progress) => {
                 this._localAiDownloadProgress = progress;
             });
+            ipcRenderer.on('cli-provider-changed', (_, payload) => {
+                if (payload && typeof payload === 'object') {
+                    this._activeCliProvider = payload.provider || null;
+                    this._cliAvailableProviders = payload.availableProviders || { claude: false, gemini: false };
+                    this.requestUpdate();
+                }
+            });
+            ipcRenderer.on('cli-candidate-context', (_, payload) => {
+                this._bufferedCandidateCount = Number(payload?.count) || 0;
+                this.requestUpdate();
+            });
         }
     }
 
@@ -496,6 +566,8 @@ export class CheatingDaddyApp extends LitElement {
             ipcRenderer.removeAllListeners('reconnect-failed');
             ipcRenderer.removeAllListeners('whisper-downloading');
             ipcRenderer.removeAllListeners('local-ai-download-progress');
+            ipcRenderer.removeAllListeners('cli-provider-changed');
+            ipcRenderer.removeAllListeners('cli-candidate-context');
         }
     }
 
@@ -569,6 +641,9 @@ export class CheatingDaddyApp extends LitElement {
                 await ipcRenderer.invoke('close-session');
             }
             this.sessionActive = false;
+            this._activeCliProvider = null;
+            this._cliAvailableProviders = { claude: false, gemini: false };
+            this._bufferedCandidateCount = 0;
             this._stopTimer();
             this.currentView = 'main';
         } else {
@@ -597,9 +672,18 @@ export class CheatingDaddyApp extends LitElement {
 
     async handleStart() {
         const prefs = await cheatingDaddy.storage.getPreferences();
-        const providerMode = prefs.providerMode === 'cloud' ? 'byok' : prefs.providerMode || 'byok';
+        const providerMode = prefs.providerMode === 'cloud' ? 'cli' : prefs.providerMode || 'cli';
 
-        if (providerMode === 'cloud') {
+        if (providerMode === 'cli') {
+            const success = await cheatingDaddy.initializeCli(this.selectedProfile, this.selectedLanguage);
+            if (!success) {
+                const mainView = this.shadowRoot.querySelector('main-view');
+                if (mainView && mainView.triggerCliError) {
+                    mainView.triggerCliError();
+                }
+                return;
+            }
+        } else if (providerMode === 'cloud') {
             const creds = await cheatingDaddy.storage.getCredentials();
             if (!creds.cloudToken || creds.cloudToken.trim() === '') {
                 const mainView = this.shadowRoot.querySelector('main-view');
@@ -642,6 +726,7 @@ export class CheatingDaddyApp extends LitElement {
         cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality);
         this.responses = [];
         this.currentResponseIndex = -1;
+        this._bufferedCandidateCount = 0;
         this.startTime = Date.now();
         this.sessionActive = true;
         this.currentView = 'assistant';
@@ -649,7 +734,24 @@ export class CheatingDaddyApp extends LitElement {
     }
 
     async handleCancelLocalDownload() {
-        await cheatingDaddy.cancelLocalInitialization();
+        await Promise.all([cheatingDaddy.cancelLocalInitialization(), cheatingDaddy.cancelCliInitialization()]);
+    }
+
+    async handleSuggestContinuation() {
+        const result = await cheatingDaddy.suggestCliContinuation();
+        if (!result?.success && result?.error) {
+            this.setStatus(result.error);
+        }
+    }
+
+    async handleSwitchCliProvider() {
+        if (!this._activeCliProvider) return;
+        const next = this._activeCliProvider === 'claude' ? 'gemini' : 'claude';
+        if (!this._cliAvailableProviders?.[next]) {
+            this.setStatus(`${next === 'claude' ? 'Claude' : 'Gemini'} CLI not available`);
+            return;
+        }
+        await cheatingDaddy.switchCliProvider(next);
     }
 
     async handleAPIKeyHelp() {
@@ -750,6 +852,8 @@ export class CheatingDaddyApp extends LitElement {
                     <main-view
                         .selectedProfile=${this.selectedProfile}
                         .onProfileChange=${p => this.handleProfileChange(p)}
+                        .selectedLanguage=${this.selectedLanguage}
+                        .onLanguageChange=${lang => this.handleLanguageChange(lang)}
                         .onStart=${() => this.handleStart()}
                         .onExternalLink=${url => this.handleExternalLinkClick(url)}
                         .whisperDownloading=${this._whisperDownloading}
@@ -781,9 +885,6 @@ export class CheatingDaddyApp extends LitElement {
                         .onLayoutModeChange=${lm => this.handleLayoutModeChange(lm)}
                     ></customize-view>
                 `;
-
-            case 'feedback':
-                return html`<feedback-view></feedback-view>`;
 
             case 'help':
                 return html`<help-view .onExternalLinkClick=${url => this.handleExternalLinkClick(url)}></help-view>`;
@@ -862,16 +963,6 @@ export class CheatingDaddyApp extends LitElement {
                             d="M19.875 6.27A2.23 2.23 0 0 1 21 8.218v7.284c0 .809-.443 1.555-1.158 1.948l-6.75 4.27a2.27 2.27 0 0 1-2.184 0l-6.75-4.27A2.23 2.23 0 0 1 3 15.502V8.217c0-.809.443-1.554 1.158-1.947l6.75-3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98z"
                         />
                         <path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0" />
-                    </g>
-                </svg>`,
-            },
-            {
-                id: 'feedback',
-                label: 'Feedback',
-                icon: html`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24">
-                    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
-                        <path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-5l-5 3v-3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3zM9.5 9h.01m4.99 0h.01" />
-                        <path d="M9.5 13a3.5 3.5 0 0 0 5 0" />
                     </g>
                 </svg>`,
             },
@@ -957,6 +1048,33 @@ export class CheatingDaddyApp extends LitElement {
                 </div>
                 <div class="live-bar-center">${profileLabels[this.selectedProfile] || 'Session'}</div>
                 <div class="live-bar-right">
+                    ${
+                        this._activeCliProvider
+                            ? html`
+                                  <button
+                                      class="continue-pill"
+                                      @click=${() => this.handleSuggestContinuation()}
+                                      title="Підказати продовження вашої відповіді"
+                                  >
+                                      ${this._bufferedCandidateCount > 0 ? `Далі (${this._bufferedCandidateCount})` : 'Далі'}
+                                  </button>
+                                  <button
+                                      class="provider-pill"
+                                      @click=${() => this.handleSwitchCliProvider()}
+                                      ?disabled=${!(this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini)}
+                                      title=${
+                                          this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini
+                                              ? 'Switch CLI provider'
+                                              : 'Active CLI provider'
+                                      }
+                                  >
+                                      ${this._activeCliProvider === 'gemini' ? 'Gemini' : 'Claude'}${
+                                          this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini ? ' ⇄' : ''
+                                      }
+                                  </button>
+                              `
+                            : ''
+                    }
                     ${this.statusText ? html`<span class="live-bar-text">${this.statusText}</span>` : ''}
                     <span class="live-bar-text">${this.getElapsedTime()}</span>
                     ${this._isClickThrough ? html`<span class="live-bar-text">[click through]</span>` : ''}

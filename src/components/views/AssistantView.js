@@ -3,7 +3,10 @@ import { html, css, LitElement } from '../../assets/lit-core-2.7.4.min.js';
 export class AssistantView extends LitElement {
     static styles = css`
         :host {
+            flex: 1;
             height: 100%;
+            min-height: 0;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
         }
@@ -17,12 +20,12 @@ export class AssistantView extends LitElement {
 
         .response-container {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             font-size: var(--response-font-size, 15px);
             line-height: var(--line-height);
             background: var(--bg-app);
             padding: var(--space-sm) var(--space-md);
-            scroll-behavior: smooth;
             user-select: text;
             cursor: text;
             color: var(--text-primary);
@@ -54,12 +57,22 @@ export class AssistantView extends LitElement {
             font-weight: var(--font-weight-semibold);
         }
 
-        .response-container h1 { font-size: 1.5em; }
-        .response-container h2 { font-size: 1.3em; }
-        .response-container h3 { font-size: 1.15em; }
-        .response-container h4 { font-size: 1.05em; }
+        .response-container h1 {
+            font-size: 1.5em;
+        }
+        .response-container h2 {
+            font-size: 1.3em;
+        }
+        .response-container h3 {
+            font-size: 1.15em;
+        }
+        .response-container h4 {
+            font-size: 1.05em;
+        }
         .response-container h5,
-        .response-container h6 { font-size: 1em; }
+        .response-container h6 {
+            font-size: 1em;
+        }
 
         .response-container p {
             margin: 0.6em 0;
@@ -165,6 +178,7 @@ export class AssistantView extends LitElement {
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
             gap: var(--space-sm);
             padding: var(--space-xs) var(--space-md);
             border-top: 1px solid var(--border);
@@ -211,6 +225,7 @@ export class AssistantView extends LitElement {
         .input-bar {
             display: flex;
             align-items: center;
+            flex-shrink: 0;
             gap: var(--space-sm);
             padding: var(--space-md);
             background: var(--bg-app);
@@ -263,7 +278,9 @@ export class AssistantView extends LitElement {
             display: flex;
             align-items: center;
             gap: 4px;
-            transition: border-color 0.4s ease, background var(--transition);
+            transition:
+                border-color 0.4s ease,
+                background var(--transition);
             flex-shrink: 0;
             overflow: hidden;
         }
@@ -289,6 +306,15 @@ export class AssistantView extends LitElement {
 
         .analyze-btn.analyzing .analyze-btn-content {
             opacity: 0;
+        }
+
+        .analyze-shortcut {
+            font-size: 10px;
+            opacity: 0.7;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
         }
 
         .analyze-canvas {
@@ -317,6 +343,148 @@ export class AssistantView extends LitElement {
         this.onSendText = () => {};
         this.isAnalyzing = false;
         this._animFrame = null;
+        this._scrollTarget = null;
+        this._scrollResetTimer = null;
+        this._lastScrollTriggerTs = 0;
+        this._lastIpcScrollTs = 0;
+        this._keybinds = this._getDefaultScrollKeybinds();
+        this._clearScrollTarget = () => {
+            this._scrollTarget = null;
+            if (this._scrollResetTimer) {
+                clearTimeout(this._scrollResetTimer);
+                this._scrollResetTimer = null;
+            }
+        };
+        this._handleWindowKeydown = e => {
+            if (this._matchesKeybind(e, this._keybinds.nextStep)) {
+                e.preventDefault();
+                this.handleScreenAnswer();
+                return;
+            }
+            if (performance.now() - this._lastIpcScrollTs < 40) {
+                return;
+            }
+            const upMatch = this._matchesKeybind(e, this._keybinds.scrollUp) || (e.code === 'PageUp' && !e.ctrlKey && !e.altKey && !e.metaKey);
+            if (upMatch) {
+                e.preventDefault();
+                this._scrollResponseBy(-1);
+                return;
+            }
+            const downMatch = this._matchesKeybind(e, this._keybinds.scrollDown) || (e.code === 'PageDown' && !e.ctrlKey && !e.altKey && !e.metaKey);
+            if (downMatch) {
+                e.preventDefault();
+                this._scrollResponseBy(1);
+            }
+        };
+    }
+
+    _getDefaultScrollKeybinds() {
+        const isMac = Boolean(window.cheatingDaddy?.isMacOS || navigator.platform.includes('Mac'));
+        return {
+            nextStep: isMac ? 'Cmd+Enter' : 'Ctrl+Enter',
+            scrollUp: isMac ? 'Cmd+Shift+Up' : 'Ctrl+Shift+Up',
+            scrollDown: isMac ? 'Cmd+Shift+Down' : 'Ctrl+Shift+Down',
+        };
+    }
+
+    async _loadScrollKeybinds() {
+        try {
+            const saved = await window.cheatingDaddy?.storage?.getKeybinds?.();
+            if (saved && typeof saved === 'object') {
+                this._keybinds = { ...this._getDefaultScrollKeybinds(), ...saved };
+                this.requestUpdate();
+            }
+        } catch (error) {
+            console.warn('Could not load scroll keybinds:', error);
+        }
+    }
+
+    _matchesKeybind(e, accelerator) {
+        if (!accelerator || typeof accelerator !== 'string') {
+            return false;
+        }
+        const parts = accelerator
+            .split('+')
+            .map(part => part.trim())
+            .filter(Boolean);
+        if (parts.length === 0) {
+            return false;
+        }
+
+        const isMac = Boolean(window.cheatingDaddy?.isMacOS || navigator.platform.includes('Mac'));
+        let wantCtrl = false;
+        let wantMeta = false;
+        let wantAlt = false;
+        let wantShift = false;
+        let expectedKey = '';
+
+        for (const rawPart of parts) {
+            const part = rawPart.toLowerCase();
+            if (part === 'ctrl' || part === 'control') {
+                wantCtrl = true;
+            } else if (part === 'cmd' || part === 'command' || part === 'meta' || part === 'super') {
+                wantMeta = true;
+            } else if (part === 'commandorcontrol' || part === 'cmdorctrl') {
+                if (isMac) wantMeta = true;
+                else wantCtrl = true;
+            } else if (part === 'alt' || part === 'option') {
+                wantAlt = true;
+            } else if (part === 'shift') {
+                wantShift = true;
+            } else {
+                expectedKey = rawPart;
+            }
+        }
+
+        if (e.ctrlKey !== wantCtrl || e.metaKey !== wantMeta || e.altKey !== wantAlt || e.shiftKey !== wantShift) {
+            return false;
+        }
+
+        let actualKey = e.key || '';
+        switch (e.code) {
+            case 'ArrowUp':
+                actualKey = 'Up';
+                break;
+            case 'ArrowDown':
+                actualKey = 'Down';
+                break;
+            case 'ArrowLeft':
+                actualKey = 'Left';
+                break;
+            case 'ArrowRight':
+                actualKey = 'Right';
+                break;
+            case 'PageUp':
+                actualKey = 'PageUp';
+                break;
+            case 'PageDown':
+                actualKey = 'PageDown';
+                break;
+            case 'BracketLeft':
+                actualKey = '[';
+                break;
+            case 'BracketRight':
+                actualKey = ']';
+                break;
+            case 'Backslash':
+                actualKey = '\\';
+                break;
+            case 'Space':
+                actualKey = 'Space';
+                break;
+            case 'Enter':
+                actualKey = 'Enter';
+                break;
+            default: {
+                const keyMatch = /^Key([A-Z])$/.exec(e.code || '');
+                const digitMatch = /^Digit([0-9])$/.exec(e.code || '');
+                if (keyMatch) actualKey = keyMatch[1];
+                else if (digitMatch) actualKey = digitMatch[1];
+                break;
+            }
+        }
+
+        return actualKey.toLowerCase() === expectedKey.toLowerCase();
     }
 
     getProfileNames() {
@@ -408,32 +576,60 @@ export class AssistantView extends LitElement {
         }
     }
 
-    scrollResponseUp() {
-        const container = this.shadowRoot.querySelector('.response-container');
-        if (container) {
-            const scrollAmount = container.clientHeight * 0.3;
-            container.scrollTop = Math.max(0, container.scrollTop - scrollAmount);
+    _scrollResponseBy(direction, { fromIpc = false } = {}) {
+        const container = this.shadowRoot?.querySelector('.response-container');
+        if (!container) {
+            return;
+        }
+
+        const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+        const step = Math.max(110, Math.round(container.clientHeight * 0.4));
+        const now = performance.now();
+        if (fromIpc) {
+            this._lastIpcScrollTs = now;
+        }
+        const isRapid = now - this._lastScrollTriggerTs < 140;
+        this._lastScrollTriggerTs = now;
+
+        const base = this._scrollTarget !== null ? this._scrollTarget : container.scrollTop;
+        const target = Math.max(0, Math.min(maxScroll, base + direction * step));
+        this._scrollTarget = target;
+
+        if (this._scrollResetTimer) {
+            clearTimeout(this._scrollResetTimer);
+        }
+        this._scrollResetTimer = setTimeout(() => {
+            this._scrollTarget = null;
+            this._scrollResetTimer = null;
+        }, 350);
+
+        if (typeof container.scrollTo === 'function') {
+            container.scrollTo({ top: target, behavior: isRapid ? 'auto' : 'smooth' });
+        } else {
+            container.scrollTop = target;
         }
     }
 
+    scrollResponseUp() {
+        this._scrollResponseBy(-1);
+    }
+
     scrollResponseDown() {
-        const container = this.shadowRoot.querySelector('.response-container');
-        if (container) {
-            const scrollAmount = container.clientHeight * 0.3;
-            container.scrollTop = Math.min(container.scrollHeight - container.clientHeight, container.scrollTop + scrollAmount);
-        }
+        this._scrollResponseBy(1);
     }
 
     connectedCallback() {
         super.connectedCallback();
+        this._loadScrollKeybinds();
+        window.addEventListener('keydown', this._handleWindowKeydown);
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
 
             this.handlePreviousResponse = () => this.navigateToPreviousResponse();
             this.handleNextResponse = () => this.navigateToNextResponse();
-            this.handleScrollUp = () => this.scrollResponseUp();
-            this.handleScrollDown = () => this.scrollResponseDown();
+            this.handleScrollUp = () => this._scrollResponseBy(-1, { fromIpc: true });
+            this.handleScrollDown = () => this._scrollResponseBy(1, { fromIpc: true });
 
             ipcRenderer.on('navigate-previous-response', this.handlePreviousResponse);
             ipcRenderer.on('navigate-next-response', this.handleNextResponse);
@@ -445,6 +641,8 @@ export class AssistantView extends LitElement {
     disconnectedCallback() {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
+        this._clearScrollTarget();
+        window.removeEventListener('keydown', this._handleWindowKeydown);
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
@@ -465,7 +663,7 @@ export class AssistantView extends LitElement {
     }
 
     handleTextKeydown(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
             e.preventDefault();
             this.handleSendText();
         }
@@ -506,7 +704,7 @@ export class AssistantView extends LitElement {
         const perimeter = 2 * straightLen + 2 * arcLen;
 
         // Given a distance along the perimeter, return {x, y, nx, ny} (position + inward normal)
-        const pointOnPerimeter = (d) => {
+        const pointOnPerimeter = d => {
             d = ((d % perimeter) + perimeter) % perimeter;
             // Top straight: left to right
             if (d < straightLen) {
@@ -545,7 +743,7 @@ export class AssistantView extends LitElement {
             seeds.push({ pos: Math.random(), drift: Math.random(), depthSeed: Math.random() });
         }
 
-        const draw = (now) => {
+        const draw = now => {
             const elapsed = (now - startTime) / 1000;
             const fade = Math.min(1, elapsed / FADE_IN);
 
@@ -635,6 +833,13 @@ export class AssistantView extends LitElement {
         super.updated(changedProperties);
         if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex')) {
             this.updateResponseContent();
+            if (changedProperties.has('currentResponseIndex')) {
+                this._clearScrollTarget();
+                const container = this.shadowRoot?.querySelector('.response-container');
+                if (container) {
+                    container.scrollTop = 0;
+                }
+            }
         }
 
         if (changedProperties.has('isAnalyzing')) {
@@ -668,40 +873,69 @@ export class AssistantView extends LitElement {
         const hasMultipleResponses = this.responses.length > 1;
 
         return html`
-            <div class="response-container" id="responseContainer"></div>
+            <div class="response-container" id="responseContainer" @wheel=${this._clearScrollTarget} @pointerdown=${this._clearScrollTarget}></div>
 
-            ${hasMultipleResponses ? html`
-                <div class="response-nav">
-                    <button class="nav-btn" @click=${this.navigateToPreviousResponse} ?disabled=${this.currentResponseIndex <= 0} title="Previous response">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                    <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
-                    <button class="nav-btn" @click=${this.navigateToNextResponse} ?disabled=${this.currentResponseIndex >= this.responses.length - 1} title="Next response">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            ` : ''}
+            ${
+                hasMultipleResponses
+                    ? html`
+                          <div class="response-nav">
+                              <button
+                                  class="nav-btn"
+                                  @click=${this.navigateToPreviousResponse}
+                                  ?disabled=${this.currentResponseIndex <= 0}
+                                  title="Previous response"
+                              >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path
+                                          fill-rule="evenodd"
+                                          d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+                                          clip-rule="evenodd"
+                                      />
+                                  </svg>
+                              </button>
+                              <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
+                              <button
+                                  class="nav-btn"
+                                  @click=${this.navigateToNextResponse}
+                                  ?disabled=${this.currentResponseIndex >= this.responses.length - 1}
+                                  title="Next response"
+                              >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path
+                                          fill-rule="evenodd"
+                                          d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
+                                          clip-rule="evenodd"
+                                      />
+                                  </svg>
+                              </button>
+                          </div>
+                      `
+                    : ''
+            }
 
             <div class="input-bar">
                 <div class="input-bar-inner">
-                    <input
-                        type="text"
-                        id="textInput"
-                        placeholder="Type a message..."
-                        @keydown=${this.handleTextKeydown}
-                    />
+                    <input type="text" id="textInput" placeholder="Type a message..." @keydown=${this.handleTextKeydown} />
                 </div>
-                <button class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}" @click=${this.handleScreenAnswer}>
+                <button
+                    class="analyze-btn ${this.isAnalyzing ? 'analyzing' : ''}"
+                    @click=${this.handleScreenAnswer}
+                    title="Analyze Screen (${this._keybinds.nextStep})"
+                >
                     <canvas class="analyze-canvas"></canvas>
                     <span class="analyze-btn-content">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24">
-                            <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 3v7h6l-8 11v-7H5z" />
+                            <path
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M13 3v7h6l-8 11v-7H5z"
+                            />
                         </svg>
                         Analyze Screen
+                        <span class="analyze-shortcut">${this._keybinds.nextStep}</span>
                     </span>
                 </button>
             </div>

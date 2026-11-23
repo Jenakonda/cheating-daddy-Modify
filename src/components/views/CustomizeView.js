@@ -256,6 +256,8 @@ export class CustomizeView extends LitElement {
 
     getLanguages() {
         return [
+            { value: 'auto', name: 'Auto-detect (Multilingual)' },
+            { value: 'uk-UA', name: 'Ukrainian (Ukraine)' },
             { value: 'en-US', name: 'English (US)' },
             { value: 'en-GB', name: 'English (UK)' },
             { value: 'en-AU', name: 'English (Australia)' },
@@ -314,7 +316,7 @@ export class CustomizeView extends LitElement {
             { key: 'moveRight', name: 'Move Window Right', description: 'Move the app window right' },
             { key: 'toggleVisibility', name: 'Toggle Visibility', description: 'Show or hide the app window' },
             { key: 'toggleClickThrough', name: 'Toggle Click-through', description: 'Enable or disable click-through mode' },
-            { key: 'nextStep', name: 'Ask Next Step', description: 'Take screenshot and ask for next step' },
+            { key: 'nextStep', name: 'Analyze Screen', description: 'Capture screenshot and analyze screen (or start session from Home)' },
             { key: 'previousResponse', name: 'Previous Response', description: 'Move to previous AI response' },
             { key: 'nextResponse', name: 'Next Response', description: 'Move to next AI response' },
             { key: 'scrollUp', name: 'Scroll Response Up', description: 'Scroll response content upward' },
@@ -438,6 +440,18 @@ export class CustomizeView extends LitElement {
             case 'ArrowRight':
                 mainKey = 'Right';
                 break;
+            case 'PageUp':
+                mainKey = 'PageUp';
+                break;
+            case 'PageDown':
+                mainKey = 'PageDown';
+                break;
+            case 'BracketLeft':
+                mainKey = '[';
+                break;
+            case 'BracketRight':
+                mainKey = ']';
+                break;
             case 'Enter':
                 mainKey = 'Enter';
                 break;
@@ -447,9 +461,14 @@ export class CustomizeView extends LitElement {
             case 'Backslash':
                 mainKey = '\\';
                 break;
-            default:
-                if (e.key.length === 1) mainKey = e.key.toUpperCase();
+            default: {
+                const keyMatch = /^Key([A-Z])$/.exec(e.code || '');
+                const digitMatch = /^Digit([0-9])$/.exec(e.code || '');
+                if (keyMatch) mainKey = keyMatch[1];
+                else if (digitMatch) mainKey = digitMatch[1];
+                else if (e.key.length === 1) mainKey = e.key.toUpperCase();
                 break;
+            }
         }
 
         if (['Control', 'Meta', 'Alt', 'Shift'].includes(e.key)) return;
@@ -580,9 +599,13 @@ export class CustomizeView extends LitElement {
                             <option value="both">Both Speaker and Microphone</option>
                         </select>
                     </div>
-                    ${this.audioMode !== 'speaker_only' ? html`
-                        <div class="warning-callout">May cause unexpected behavior. Only change this if you know what you're doing.</div>
-                    ` : ''}
+                    ${
+                        this.audioMode !== 'speaker_only'
+                            ? html`
+                                  <div class="warning-callout">May cause unexpected behavior. Only change this if you know what you're doing.</div>
+                              `
+                            : ''
+                    }
                     <div class="form-group">
                         <label class="form-label">Image Quality</label>
                         <select class="control" .value=${this.selectedImageQuality} @change=${this.handleImageQualitySelect}>
@@ -662,20 +685,22 @@ export class CustomizeView extends LitElement {
         return html`
             <section class="surface">
                 <div class="surface-title">Keyboard Shortcuts</div>
-                ${this.getKeybindActions().map(action => html`
-                    <div class="keybind-row">
-                        <span class="keybind-name">${action.name}</span>
-                        <input
-                            type="text"
-                            class="control keybind-input"
-                            .value=${this.keybinds[action.key]}
-                            data-action=${action.key}
-                            @keydown=${this.handleKeybindInput}
-                            @focus=${this.handleKeybindFocus}
-                            readonly
-                        />
-                    </div>
-                `)}
+                ${this.getKeybindActions().map(
+                    action => html`
+                        <div class="keybind-row">
+                            <span class="keybind-name">${action.name}</span>
+                            <input
+                                type="text"
+                                class="control keybind-input"
+                                .value=${this.keybinds[action.key]}
+                                data-action=${action.key}
+                                @keydown=${this.handleKeybindInput}
+                                @focus=${this.handleKeybindFocus}
+                                readonly
+                            />
+                        </div>
+                    `
+                )}
                 <div style="margin-top: var(--space-sm);">
                     <button class="control" style="width:auto;padding:8px 10px;" @click=${this.resetKeybinds}>Reset to defaults</button>
                 </div>
@@ -695,9 +720,11 @@ export class CustomizeView extends LitElement {
                         ${this.isClearing ? 'Clearing...' : 'Delete all data'}
                     </button>
                 </div>
-                ${this.clearStatusMessage ? html`
-                    <div class="status ${this.clearStatusType === 'success' ? 'success' : 'error'}">${this.clearStatusMessage}</div>
-                ` : ''}
+                ${
+                    this.clearStatusMessage
+                        ? html` <div class="status ${this.clearStatusType === 'success' ? 'success' : 'error'}">${this.clearStatusMessage}</div> `
+                        : ''
+                }
             </section>
         `;
     }
@@ -707,10 +734,7 @@ export class CustomizeView extends LitElement {
             <div class="unified-page">
                 <div class="unified-wrap">
                     <div class="page-title">Settings</div>
-                    ${this.renderAudioSection()}
-                    ${this.renderLanguageSection()}
-                    ${this.renderAppearanceSection()}
-                    ${this.renderKeyboardSection()}
+                    ${this.renderAudioSection()} ${this.renderLanguageSection()} ${this.renderAppearanceSection()} ${this.renderKeyboardSection()}
                     ${this.renderPrivacySection()}
                 </div>
             </div>

@@ -2,186 +2,29 @@ const fs = require('fs');
 const path = require('path');
 const { getSystemPrompt } = require('./prompts');
 const { sendToRenderer, initializeNewSession, saveConversationTurn } = require('./gemini');
+const { getDefaultContextDir, getPreferences } = require('../storage');
+const { loadContextFolder } = require('./context-folder');
 const {
     ensureNativeBinary,
     ensureLlamaModel,
-    ensureWhisperModel,
     getAvailablePort,
     getModelsDirectory,
     startNativeServer,
     stopNativeServer,
     waitForServer,
 } = require('./native-ai-runtime');
+const { WhisperSttEngine, VAD_MODES } = require('./whisper-stt');
 
 let llamaProcess = null;
 let llamaBaseUrl = null;
 let llamaModel = null;
-let whisperProcess = null;
-let whisperBaseUrl = null;
 let localConversationHistory = [];
 let currentSystemPrompt = null;
 let isLocalActive = false;
 let initializationController = null;
 let llamaCacheSnapshot = new Set();
 
-let isSpeaking = false;
-let speechBuffers = [];
-let silenceFrameCount = 0;
-let speechFrameCount = 0;
-
-const VAD_MODES = {
-    NORMAL: { energyThreshold: 0.01, speechFramesRequired: 3, silenceFramesRequired: 30 },
-    LOW_BITRATE: { energyThreshold: 0.008, speechFramesRequired: 4, silenceFramesRequired: 35 },
-    AGGRESSIVE: { energyThreshold: 0.015, speechFramesRequired: 2, silenceFramesRequired: 20 },
-    VERY_AGGRESSIVE: { energyThreshold: 0.02, speechFramesRequired: 2, silenceFramesRequired: 15 },
-};
-
-let vadConfig = VAD_MODES.VERY_AGGRESSIVE;
-let resampleRemainder = Buffer.alloc(0);
-
-function resample24kTo16k(inputBuffer) {
-    const combined = Buffer.concat([resampleRemainder, inputBuffer]);
-    const inputSamples = Math.floor(combined.length / 2);
-    const outputSamples = Math.floor((inputSamples * 2) / 3);
-    const outputBuffer = Buffer.alloc(outputSamples * 2);
-
-    for (let i = 0; i < outputSamples; i++) {
-        const sourcePosition = (i * 3) / 2;
-        const sourceIndex = Math.floor(sourcePosition);
-        const fraction = sourcePosition - sourceIndex;
-        const firstSample = combined.readInt16LE(sourceIndex * 2);
-        const secondSample = sourceIndex + 1 < inputSamples ? combined.readInt16LE((sourceIndex + 1) * 2) : firstSample;
-        const interpolated = Math.round(firstSample + fraction * (secondSample - firstSample));
-        outputBuffer.writeInt16LE(Math.max(-32768, Math.min(32767, interpolated)), i * 2);
-    }
-
-    const consumedInputSamples = Math.ceil((outputSamples * 3) / 2);
-    const remainderStart = consumedInputSamples * 2;
-    resampleRemainder = remainderStart < combined.length ? combined.slice(remainderStart) : Buffer.alloc(0);
-
-    return outputBuffer;
-}
-
-function calculateRms(pcm16Buffer) {
-    const samples = pcm16Buffer.length / 2;
-    if (samples === 0) return 0;
-
-    let sumSquares = 0;
-    for (let i = 0; i < samples; i++) {
-        const sample = pcm16Buffer.readInt16LE(i * 2) / 32768;
-        sumSquares += sample * sample;
-    }
-
-    return Math.sqrt(sumSquares / samples);
-}
-
-function processVad(pcm16kBuffer) {
-    const rms = calculateRms(pcm16kBuffer);
-    const isVoice = rms > vadConfig.energyThreshold;
-
-    if (isVoice) {
-        speechFrameCount += 1;
-        silenceFrameCount = 0;
-
-        if (!isSpeaking && speechFrameCount >= vadConfig.speechFramesRequired) {
-            isSpeaking = true;
-            speechBuffers = [];
-            console.log('[LocalAI] Speech started (RMS:', rms.toFixed(4), ')');
-            sendToRenderer('update-status', 'Listening... (speech detected)');
-        }
-    } else {
-        silenceFrameCount += 1;
-        speechFrameCount = 0;
-
-        if (isSpeaking && silenceFrameCount >= vadConfig.silenceFramesRequired) {
-            isSpeaking = false;
-            const audioData = Buffer.concat(speechBuffers);
-            speechBuffers = [];
-            console.log('[LocalAI] Speech ended, accumulated', audioData.length, 'bytes');
-            sendToRenderer('update-status', 'Transcribing...');
-            handleSpeechEnd(audioData);
-            return;
-        }
-    }
-
-    if (isSpeaking) {
-        speechBuffers.push(Buffer.from(pcm16kBuffer));
-    }
-}
-
-function createWavBuffer(pcm16Buffer) {
-    const header = Buffer.alloc(44);
-    const byteRate = 16000 * 2;
-
-    header.write('RIFF', 0);
-    header.writeUInt32LE(36 + pcm16Buffer.length, 4);
-    header.write('WAVE', 8);
-    header.write('fmt ', 12);
-    header.writeUInt32LE(16, 16);
-    header.writeUInt16LE(1, 20);
-    header.writeUInt16LE(1, 22);
-    header.writeUInt32LE(16000, 24);
-    header.writeUInt32LE(byteRate, 28);
-    header.writeUInt16LE(2, 32);
-    header.writeUInt16LE(16, 34);
-    header.write('data', 36);
-    header.writeUInt32LE(pcm16Buffer.length, 40);
-
-    return Buffer.concat([header, pcm16Buffer]);
-}
-
-async function transcribeAudio(pcm16kBuffer) {
-    if (!whisperBaseUrl) {
-        throw new Error('Whisper server is not running');
-    }
-
-    const wavBuffer = createWavBuffer(pcm16kBuffer);
-    const formData = new FormData();
-    formData.append('file', new Blob([wavBuffer], { type: 'audio/wav' }), 'speech.wav');
-    formData.append('response_format', 'json');
-    formData.append('temperature', '0.0');
-    formData.append('language', 'en');
-
-    const response = await fetch(`${whisperBaseUrl}/inference`, {
-        method: 'POST',
-        body: formData,
-    });
-
-    if (!response.ok) {
-        throw new Error(`Whisper server returned HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    const text = result.text?.trim() || '';
-    console.log('[LocalAI] Transcription:', text);
-    return text;
-}
-
-async function handleSpeechEnd(audioData) {
-    if (!isLocalActive) return;
-
-    if (audioData.length < 16000) {
-        console.log('[LocalAI] Audio too short, skipping');
-        sendToRenderer('update-status', 'Listening...');
-        return;
-    }
-
-    try {
-        const transcription = await transcribeAudio(audioData);
-
-        if (!transcription || transcription.length < 2) {
-            console.log('[LocalAI] Empty transcription, skipping');
-            sendToRenderer('update-status', 'Listening...');
-            return;
-        }
-
-        sendToRenderer('update-status', 'Generating response...');
-        await sendToLlama(transcription);
-    } catch (error) {
-        console.error('[LocalAI] Transcription error:', error);
-        sendToRenderer('update-status', 'Transcription error: ' + error.message);
-    }
-}
+const whisperEngine = new WhisperSttEngine();
 
 async function readStreamingResponse(response, onText) {
     const decoder = new TextDecoder();
@@ -333,24 +176,23 @@ async function prepareNativeFiles(llamaModelReference, whisperModel, signal) {
     sendDownloadProgress('Checking Llama runner');
     const llamaBinaryPath = await ensureNativeBinary('llama', binaryProgress('Llama runner'), signal);
 
-    sendDownloadProgress('Checking Whisper runner');
-    const whisperBinaryPath = await ensureNativeBinary('whisper', binaryProgress('Whisper runner'), signal);
-
-    let whisperModelPath;
-    sendToRenderer('whisper-downloading', true);
-    try {
-        sendDownloadProgress('Checking Whisper model');
-        whisperModelPath = await ensureWhisperModel(whisperModel, binaryProgress('Whisper model'), signal);
-    } finally {
-        sendToRenderer('whisper-downloading', false);
-    }
+    const whisperFiles = await whisperEngine.prepareFiles(whisperModel, {
+        onProgress: (label, progress) => {
+            if (progress) {
+                sendToRenderer('update-status', formatDownloadStatus(label, progress));
+            }
+            sendDownloadProgress(label, progress);
+        },
+        onDownloadingChange: downloading => sendToRenderer('whisper-downloading', downloading),
+        signal,
+    });
 
     sendDownloadProgress('Checking language model');
     const llamaFiles = await ensureLlamaModel(llamaModelReference, binaryProgress('Language model'), binaryProgress('Vision model'), signal);
     return {
         llamaBinaryPath,
-        whisperBinaryPath,
-        whisperModelPath,
+        whisperBinaryPath: whisperFiles.whisperBinaryPath,
+        whisperModelPath: whisperFiles.whisperModelPath,
         llamaModelPath: llamaFiles.modelPath,
         projectorPath: llamaFiles.projectorPath,
     };
@@ -370,18 +212,6 @@ function validatePreparedNativeFiles(nativeFiles) {
             throw new Error(`${label} path is invalid: ${filePath}`);
         }
     }
-}
-
-async function startWhisperServer(executablePath, modelPath) {
-    const port = await getAvailablePort();
-    whisperBaseUrl = `http://127.0.0.1:${port}`;
-    whisperProcess = startNativeServer({
-        executablePath,
-        arguments: ['-m', modelPath, '--host', '127.0.0.1', '--port', String(port)],
-        name: 'Whisper',
-    });
-
-    await waitForServer(`${whisperBaseUrl}/`, whisperProcess, 120000);
 }
 
 async function startLlamaServer(executablePath, modelPath, projectorPath) {
@@ -430,25 +260,49 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
         closeLocalSession();
         initializationController = new AbortController();
         llamaCacheSnapshot = getDirectoryEntries(path.join(getModelsDirectory(), 'llama'));
-        currentSystemPrompt = getSystemPrompt(profile, customPrompt, false);
+        const prefs = getPreferences() || {};
+        const responseLanguage = prefs.responseLanguage || 'auto';
+        let folderContext = null;
+        if (prefs.contextFolderEnabled !== false) {
+            const rawFolder =
+                prefs.contextFolderPath && String(prefs.contextFolderPath).trim() ? prefs.contextFolderPath.trim() : getDefaultContextDir();
+            if (rawFolder && fs.existsSync(rawFolder)) {
+                const loadedBundle = await loadContextFolder(rawFolder, { inlineCharLimit: 10000 });
+                if (loadedBundle && loadedBundle.mode !== 'empty') {
+                    folderContext = loadedBundle;
+                }
+            }
+        }
+        currentSystemPrompt = getSystemPrompt(profile, customPrompt, false, responseLanguage, folderContext);
         llamaModel = model;
+
+        const selectedLanguage = prefs.selectedLanguage || 'en-US';
 
         const nativeFiles = await prepareNativeFiles(model, whisperModel, initializationController.signal);
         validatePreparedNativeFiles(nativeFiles);
 
-        sendToRenderer('update-status', 'Starting Whisper...');
-        sendDownloadProgress('Starting Whisper');
-        await startWhisperServer(nativeFiles.whisperBinaryPath, nativeFiles.whisperModelPath);
+        await whisperEngine.start({
+            whisperModel,
+            language: selectedLanguage,
+            vadMode: VAD_MODES.VERY_AGGRESSIVE,
+            preparedFiles: {
+                whisperBinaryPath: nativeFiles.whisperBinaryPath,
+                whisperModelPath: nativeFiles.whisperModelPath,
+            },
+            onStatus: status => sendToRenderer('update-status', status),
+            onProgress: (label, progress) => sendDownloadProgress(label, progress),
+            onTranscription: async text => {
+                if (!isLocalActive) return;
+                sendToRenderer('update-status', 'Generating response...');
+                await sendToLlama(text);
+            },
+            signal: initializationController.signal,
+        });
 
         sendToRenderer('update-status', 'Loading local language model...');
         sendDownloadProgress('Loading language model');
         await startLlamaServer(nativeFiles.llamaBinaryPath, nativeFiles.llamaModelPath, nativeFiles.projectorPath);
 
-        isSpeaking = false;
-        speechBuffers = [];
-        silenceFrameCount = 0;
-        speechFrameCount = 0;
-        resampleRemainder = Buffer.alloc(0);
         localConversationHistory = [];
 
         initializeNewSession(profile, customPrompt);
@@ -477,13 +331,9 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
     }
 }
 
-function processLocalAudio(monoChunk24k) {
+function processLocalAudio(monoChunk, source = 'interviewer', sampleRate = 24000) {
     if (!isLocalActive) return;
-
-    const pcm16k = resample24kTo16k(monoChunk24k);
-    if (pcm16k.length > 0) {
-        processVad(pcm16k);
-    }
+    whisperEngine.processAudio(monoChunk, source, sampleRate);
 }
 
 function closeLocalSession() {
@@ -491,17 +341,10 @@ function closeLocalSession() {
     initializationController?.abort();
     initializationController = null;
     stopNativeServer(llamaProcess);
-    stopNativeServer(whisperProcess);
+    whisperEngine.stop();
     llamaProcess = null;
-    whisperProcess = null;
     llamaBaseUrl = null;
-    whisperBaseUrl = null;
     llamaModel = null;
-    isSpeaking = false;
-    speechBuffers = [];
-    silenceFrameCount = 0;
-    speechFrameCount = 0;
-    resampleRemainder = Buffer.alloc(0);
     localConversationHistory = [];
     currentSystemPrompt = null;
 }
@@ -513,7 +356,7 @@ async function cancelLocalInitialization() {
 
     initializationController.abort();
     stopNativeServer(llamaProcess);
-    stopNativeServer(whisperProcess);
+    whisperEngine.stop();
     await new Promise(resolve => setTimeout(resolve, 300));
     removeNewLlamaCacheEntries();
     sendToRenderer('local-ai-download-progress', { active: false });
