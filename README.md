@@ -1,103 +1,184 @@
-# Cheating Daddy (CLI & Offline Whisper Edition)
+<div align="center">
 
-Real-time transparent desktop assistant for interviews, meetings, presentations, and exams. Captures screen on demand, transcribes system audio and/or microphone locally via `whisper.cpp` (with Vulkan GPU acceleration on Windows), and answers using your own **Claude Pro** / **Google AI Pro** CLI subscriptions, API keys (BYOK), or Local AI.
+<img src="src/assets/logo.png" alt="Cheating Daddy logo" width="96" height="96" />
 
-> [!NOTE]
-> Use an up-to-date Windows, macOS, or Linux environment. On Windows, window content protection keeps the overlay hidden from screen shares and screenshots.
+# Cheating Daddy
 
----
+**CLI & Offline Whisper Edition**
 
-## Quick Start
+A transparent real-time desktop assistant that listens, watches your screen, and answers
+using your own **Claude Pro** or **Google AI Pro** subscription — or fully offline.
 
-### Option 1: Windows Installer / Portable ZIP (Recommended — No Node.js or Git needed)
+[![Release](https://img.shields.io/github/v/release/Jenakonda/cheating-daddy-Modify?style=flat-square&color=8b9cff)](https://github.com/Jenakonda/cheating-daddy-Modify/releases)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-8b9cff?style=flat-square)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-2c2c32?style=flat-square)
+![Electron](https://img.shields.io/badge/Electron-30-2c2c32?style=flat-square&logo=electron&logoColor=white)
 
-1. Download **`Cheating-Daddy-Setup.exe`** (installer) or **`Cheating Daddy-win32-x64-*.zip`** (portable) from the repository's [**Releases**](https://github.com/Jenakonda/cheating-daddy-Modify/releases) page.
-2. Run the installer (or extract the ZIP and run `Cheating Daddy.exe`).
-    - _First-launch Windows SmartScreen note:_ for unsigned builds, click **More info** -> **Run anyway** once.
-3. On Home, under **CLI Availability**, click **`Install & Sign In`** on the **Gemini (`agy`)** or **Claude CLI** card to install the CLI and sign in with your Google / Anthropic subscription in one click (no manual console commands needed).
+[**Download**](https://github.com/Jenakonda/cheating-daddy-Modify/releases) ·
+[Quick start](#-quick-start) ·
+[Features](#-features) ·
+[Shortcuts](#-keyboard-shortcuts) ·
+[Privacy](#-privacy--local-data)
 
-### Option 2: Run from Source (Developers)
+<br />
 
-1. **Install prerequisites**: [Node.js](https://nodejs.org/) (v20+) and at least one CLI subscription if using CLI mode:
-    - **Google Antigravity CLI `agy` (Google AI Pro / Ultra)**:
-        - Windows (PowerShell): `irm https://antigravity.google/cli/install.ps1 | iex`
-        - Windows (CMD): `curl -fsSL https://antigravity.google/cli/install.cmd -o install.cmd && install.cmd && del install.cmd`
-        - macOS / Linux: `curl -fsSL https://antigravity.google/cli/install.sh | bash`
-        - Verify with `agy --version`, then run `agy` once to sign in with Google.
-    - **Claude Code CLI (Claude Pro / Max)**:
-        - Windows (PowerShell): `irm https://claude.ai/install.ps1 | iex`
-        - Or via npm: `npm install -g @anthropic-ai/claude-code`, then run `claude` once to sign in.
-2. **Clone & install dependencies**:
-    ```bash
-    git clone https://github.com/Jenakonda/cheating-daddy-Modify.git
-    cd cheating-daddy-Modify
-    npm install
-    ```
-    > **Note for npm 11+ (`allowScripts`):** if launching fails with `Electron binary not found`, run `node node_modules/electron/install.js` once to download `electron.exe`.
-3. **Launch or package**:
-    - **Console-less launch (recommended)**: `npm start` (or double-click `Start-Silent.vbs` on Windows)
-    - **Development launch with terminal logs**: `npm run start:dev`
-    - **Build Windows installer + portable ZIP locally**: `npm run make`
-    - **Run automated tests**: `npm test`
+<img src="docs/screenshots/home.png" alt="Home screen" width="760" />
 
----
+</div>
 
-## AI Provider Modes
+<br />
 
-- **CLI Mode (Default — Subscription OAuth, no API keys needed)**:
-    - Supports **Claude Code CLI** (`sonnet`, `opus`, `haiku`, `fable`, custom model ID + `--effort` strength) and **Google Antigravity CLI `agy`** (all live models & reasoning tiers, with **Refresh models** sync).
-    - Supports **Auto-fallback** on rate limits/errors and one-click live provider switching during an active session (context preserved).
-- **BYOK Mode**: Gemini Live API and Groq keys.
-- **Local AI Mode**: Local GGUF LLM via `llama.cpp` + local `whisper.cpp` (completely offline).
+## ✨ Features
 
----
+|                             |                                                                                                       |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| 🖥️ **Transparent overlay**  | Always-on-top window with content protection — hidden from screen shares and screenshots on Windows.  |
+| 🎙️ **Local voice-to-text**  | `whisper.cpp` with Vulkan GPU acceleration and a safe CPU fallback. No STT API keys.                  |
+| 🧠 **Bring your own AI**    | Claude Code CLI, Google Antigravity CLI (`agy`), Gemini / Groq keys, or a local GGUF model.           |
+| 🔁 **Live provider switch** | Swap between Claude and Gemini mid-session with context preserved, plus auto-fallback on rate limits. |
+| 📂 **Context folder**       | Drop slides, PDFs, docs and notes — answers are grounded in your own material.                        |
+| 🎯 **Presets**              | Job interview, exam, meeting, sales call, presentation, negotiation.                                  |
+| 🌍 **Multilingual**         | Auto-detect speech language; pick the response language (including Ukrainian).                        |
+| ⌨️ **Keyboard-first**       | Every action has a customizable global shortcut.                                                      |
 
-## Local Offline Voice Transcription (Whisper)
+<br />
 
-- Automatically downloads verified `whisper.cpp` binaries and selected quantized models (`small-q5_1`, `base-q5_1`, `large-v3-turbo-q5_0`, etc.) on first launch.
-- Automatically enables **Vulkan GPU acceleration** on supported Windows GPUs with safe fallback to CPU (`-ng`) if GPU initialization fails.
-- **Audio Input Modes**:
-    - `System Audio Only` — captures remote speakers (Zoom/Meet/browser output).
-    - `Microphone Only` — captures your own voice.
-    - `Both Microphone & System Audio` — supports **Silent microphone context**: quietly buffers what you say without overwriting the screen, attaches it when the other speaker replies, or generates 1–2 continuation sentences when you click **`Далі`** during a session.
-- **Speech Language**: `Auto-detect`, Ukrainian (`uk-UA`), English, Polish, German, Russian, etc.
+<div align="center">
+<img src="docs/screenshots/live.png" alt="Live session" width="49%" />
+<img src="docs/screenshots/settings.png" alt="Settings" width="49%" />
+</div>
 
----
+<br />
 
-## Context Folder (Presentations, Docs, Exam Guides)
+## 🚀 Quick start
 
-Drop files into the **Context Folder** right from **Home** or **AI Context**:
+### Option 1 — Windows installer or portable ZIP (no Node.js needed)
 
-- **Supported formats**: `.pptx` (ordered slides + speaker notes), `.odp`, `.pdf` (per-page text extraction with Cyrillic/Unicode support), `.docx` (paragraphs + tables), `.odt`, `.rtf`, `.xlsx`, `.html`, `.md`, `.txt`, `.csv`, `.json`, `.yaml`, and source code files.
-- **Hybrid context delivery**:
-    - **Full mode** (`<= 24,000` chars): all files are loaded cleanly into the session system context (cached across turns, available to voice, text, and `Analyze Screen`).
-    - **Smart search mode** (`> 24,000` chars): injects a compact catalog into the prompt and attaches the top 5 matching chunks (`[Context: file · Slide/Page]`) per question via fast local search.
-- Controls: toggle **Context Folder**, **`+ Add Files`**, **`Open Folder`**, **`Choose Folder`**, **`Refresh`**, **`Default`**.
+1. Download **`Cheating-Daddy-Setup.exe`** (installer) or **`Cheating Daddy-win32-x64-*.zip`** (portable) from the [**Releases**](https://github.com/Jenakonda/cheating-daddy-Modify/releases) page.
+2. Run the installer, or extract the ZIP and start `Cheating Daddy.exe`.
+    > First launch on an unsigned build: Windows SmartScreen → **More info** → **Run anyway**.
+3. On **Home**, under **CLI Availability**, click **Install & Sign In** on the **Claude CLI** or **Gemini (`agy`)** card. The CLI is installed and you sign in with your subscription in one click.
 
----
+### Option 2 — Run from source
 
-## Presets, Response Language & Shortcuts
+<details>
+<summary><b>Show developer setup</b></summary>
 
-- Choose a **Preset** (`Job Interview`, `Exam Assistant`, `Business Meeting`, `Sales Call`, `Presentation`, `Negotiation`) and optional **Preferred Response Language** (`Auto`, `Українська`, `English`, etc.) directly on **Home**.
+<br />
 
-### Keyboard Shortcuts
+**Prerequisites:** [Node.js](https://nodejs.org/) v20+ and, for CLI mode, at least one subscription CLI:
 
-- **`Ctrl/Cmd + Enter`** — Start session (on Home) or **Analyze Screen** screenshot (in live session)
-- **`Ctrl/Cmd + M`** — Toggle click-through mode
-- **`Ctrl/Cmd + \`** — Show / Hide window
-- **`Ctrl/Cmd + Shift + Up / Down`** — Scroll response (`PageUp` / `PageDown` also works when focused; all shortcuts can be customized in **Settings**)
-- **`Ctrl/Alt + Arrow Keys`** — Move overlay window
-- **`Ctrl/Cmd + [ / ]`** — Previous / Next response
-- **`Ctrl/Cmd + Shift + E`** — Emergency erase & quit
+| CLI                                   | Install                                                                                                     |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Claude Code** (Claude Pro / Max)    | `irm https://claude.ai/install.ps1 \| iex` or `npm install -g @anthropic-ai/claude-code`, then run `claude` |
+| **Antigravity `agy`** (Google AI Pro) | `irm https://antigravity.google/cli/install.ps1 \| iex`, then run `agy` (macOS / Linux: `install.sh`)       |
 
----
+```bash
+git clone https://github.com/Jenakonda/cheating-daddy-Modify.git
+cd cheating-daddy-Modify
+npm install
+npm start
+```
 
-## Privacy & Local Data
+> **npm 11+:** if launching fails with `Electron binary not found`, run `node node_modules/electron/install.js` once.
 
-All personal preferences, credentials, session history, downloaded binaries/models, and the default **Context Folder** are stored strictly outside the repository on your own machine:
+| Command             | What it does                                                  |
+| ------------------- | ------------------------------------------------------------- |
+| `npm start`         | Console-less launch (or double-click `Start-Silent.vbs`)      |
+| `npm run start:dev` | Development launch with terminal logs                         |
+| `npm test`          | Run the automated test suite                                  |
+| `npm run make`      | Build the Windows installer and portable ZIP into `out/make/` |
 
-- **Windows**: `%APPDATA%\cheating-daddy-config`
-- **macOS**: `~/Library/Application Support/cheating-daddy-config`
-- **Linux**: `~/.config/cheating-daddy-config`
+</details>
 
-Nothing personal is ever committed to this repository.
+<br />
+
+## 🤖 AI provider modes
+
+| Mode                | Needs                       | Good for                                                                   |
+| ------------------- | --------------------------- | -------------------------------------------------------------------------- |
+| **CLI** _(default)_ | Claude Pro / Google AI Pro  | No API keys. Claude models + effort, all live `agy` models, auto-fallback. |
+| **BYOK**            | Gemini Live / Groq API keys | Direct API access with your own keys.                                      |
+| **Local AI**        | Nothing — runs on your PC   | Fully offline: `llama.cpp` language model + `whisper.cpp` transcription.   |
+
+<br />
+
+## 🎙️ Offline voice transcription
+
+Verified `whisper.cpp` binaries and quantized models (`small-q5_1`, `base-q5_1`, `large-v3-turbo-q5_0`, …) are downloaded automatically on first launch. Vulkan GPU acceleration is enabled on supported Windows GPUs and falls back to CPU (`-ng`) if GPU initialization fails.
+
+| Audio input mode        | Captures                                                                                                                                                              |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **System audio only**   | Remote speakers (Zoom, Meet, browser output).                                                                                                                         |
+| **Microphone only**     | Your own voice.                                                                                                                                                       |
+| **Microphone + system** | Both. Your speech is buffered quietly as _silent microphone context_ and attached when the other side replies — or press **Далі** to get a 1–2 sentence continuation. |
+
+<br />
+
+## 📂 Context folder
+
+<img align="right" src="docs/screenshots/ai-context.png" alt="AI context screen" width="320" />
+
+Drop files into the context folder right from **Home** or **AI Context**.
+
+- **Formats:** `.pptx` (slides + speaker notes), `.odp`, `.pdf` (per page, Unicode-safe), `.docx`, `.odt`, `.rtf`, `.xlsx`, `.html`, `.md`, `.txt`, `.csv`, `.json`, `.yaml` and source code.
+- **Full mode** (≤ 24,000 chars): everything is loaded into the session context and cached.
+- **Smart search** (> 24,000 chars): a compact catalog goes into the prompt and the top 5 matching chunks (`[Context: file · Slide/Page]`) are attached to each question.
+
+<br clear="right" />
+
+<br />
+
+## ⌨️ Keyboard shortcuts
+
+All shortcuts are global and can be rebound in **Settings**.
+
+| Action                             | Windows / Linux                                                  | macOS                                                         |
+| ---------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| Start session / **Analyze screen** | <kbd>Ctrl</kbd> + <kbd>Enter</kbd>                               | <kbd>⌘</kbd> + <kbd>Enter</kbd>                               |
+| Toggle click-through               | <kbd>Ctrl</kbd> + <kbd>M</kbd>                                   | <kbd>⌘</kbd> + <kbd>M</kbd>                                   |
+| Show / hide window                 | <kbd>Ctrl</kbd> + <kbd>\\</kbd>                                  | <kbd>⌘</kbd> + <kbd>\\</kbd>                                  |
+| Previous / next response           | <kbd>Ctrl</kbd> + <kbd>[</kbd> / <kbd>]</kbd>                    | <kbd>⌘</kbd> + <kbd>[</kbd> / <kbd>]</kbd>                    |
+| Scroll response                    | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> | <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> |
+| Move overlay                       | <kbd>Ctrl</kbd> + <kbd>←↑↓→</kbd>                                | <kbd>⌥</kbd> + <kbd>←↑↓→</kbd>                                |
+| Emergency erase & quit             | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd>                | <kbd>⌘</kbd> + <kbd>Shift</kbd> + <kbd>E</kbd>                |
+
+<br />
+
+## 🔒 Privacy & local data
+
+Preferences, credentials, session history, downloaded binaries and models, and the default context folder live **outside the repository**, on your machine only:
+
+| OS          | Location                                              |
+| ----------- | ----------------------------------------------------- |
+| **Windows** | `%APPDATA%\cheating-daddy-config`                     |
+| **macOS**   | `~/Library/Application Support/cheating-daddy-config` |
+| **Linux**   | `~/.config/cheating-daddy-config`                     |
+
+Nothing personal is ever committed to this repository. Local mode keeps transcription and the language model entirely on-device.
+
+<br />
+
+## 🛠️ Development
+
+The UI is built with [Lit](https://lit.dev/) web components on [Electron](https://www.electronjs.org/) and packaged with Electron Forge.
+
+```text
+src/
+├── index.html            design tokens and window shell
+├── index.js              Electron main process
+├── components/
+│   ├── app/              app shell: sidebar, window controls, live bar
+│   └── views/            Home, Assistant, Settings, History, Help, Onboarding
+└── utils/                CLI runners, Whisper STT, context folder, themes
+```
+
+Run `npm test` before committing and `npx prettier --write .` to format. Releases are built by GitHub Actions when a `v*` tag is pushed.
+
+<br />
+
+## 🙏 Credits & license
+
+A fork of [**sohzm/cheating-daddy**](https://github.com/sohzm/cheating-daddy), extended with CLI Pro mode, GPU Whisper, the context folder and a redesigned interface. Released under the [GPL-3.0 license](LICENSE).
+
+> Use responsibly and follow the rules of your school, employer and the platforms you use it on.
