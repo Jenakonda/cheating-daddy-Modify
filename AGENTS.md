@@ -1,130 +1,83 @@
 # Repo Guidelines
 
 This repository is a fork of [`cheating-daddy`](https://github.com/sohzm/cheating-daddy).
-It provides an Electron-based real‑time assistant which captures screen and audio
-for contextual AI responses. The code is JavaScript and uses Electron Forge for
-packaging.
+It is an Electron app that captures screen and audio and answers with an AI of the user's
+choice (Claude / Gemini CLI, bring-your-own API keys, or fully local models).
+The code is plain JavaScript (no TypeScript, React or bundler) and is packaged with Electron Forge.
 
 ## Getting started
 
-Install dependencies and run the development app:
+```
+npm install
+npm start          # console-less launch
+npm run start:dev  # launch with terminal logs
+npm test           # automated tests (node:test)
+```
 
-```
-1. npm install
-2. npm start
-```
+## Project layout
+
+- `src/index.js`, `src/storage.js`, `src/utils/` – main process and shared logic (CommonJS).
+  Pure logic (presets, update check, data usage, export, health tracking) lives in small modules here
+  without Electron imports, so it can be tested in Node.
+- `src/renderer/` – renderer entry (`index.js`, loaded as a classic script by `index.html`) and its modules:
+  storage bridge, themes, provider start-up, screen/audio capture, UI helpers. It exposes `window.cheatingDaddy`.
+- `src/components/` – UI built with [Lit](https://lit.dev) web components (ES modules). Large views keep
+  option lists and styles in a `main/` folder next to the view.
+- `src/assets/` – vendored libraries (Lit, marked, highlight.js, DOMPurify) and icons.
+- `test/` – tests. `docs/screenshots/` – README images.
 
 ## Style
 
-Run `npx prettier --write .` before committing. Prettier uses the settings in
-`.prettierrc` (four-space indentation, print width 150, semicolons and single
-quotes). `src/assets` and `node_modules` are ignored via `.prettierignore`.
-The project does not provide linting; `npm run lint` simply prints
-"No linting configured".
+- Format only the files you touched: `npx --yes prettier@3 --write <files>`. Do not run Prettier on the whole repo,
+  it reformats untouched code. Settings are in `.prettierrc` (4 spaces, width 150, single quotes, semicolons).
+- Files use LF line endings (`.gitattributes`).
+- There is no linter; `npm run lint` only prints a message.
 
 ## Code standards
 
-Development is gradually migrating toward a TypeScript/React codebase inspired by the
-[transcriber](https://github.com/Gatecrashah/transcriber) project. Keep the following
-rules in mind as new files are created:
+- **No tracking.** The app must not send telemetry or analytics. Outbound requests are limited to: GitHub (release and
+  update check), Hugging Face and GitHub releases (model and binary downloads, SHA-256 pinned), the AI provider the user
+  chose, and `127.0.0.1` for the local servers.
+- **Untrusted HTML.** AI answers and screen text are untrusted. Never assign them to `innerHTML` directly; use
+  `cheatingDaddy.sanitizeHtml` or `escapeHtml`. The CSP forbids inline scripts, do not add them.
+- **Secure IPC.** Validate and sanitize every parameter that crosses from the renderer to the main process
+  (see `isSafeExternalUrl` for an example). The window currently runs with `nodeIntegration` on and `contextIsolation` off;
+  moving to context isolation needs a preload bridge and a bundler and is future work.
+- **Non-blocking audio.** Heavy processing stays out of the UI thread.
+- **Tests.** Every new piece of logic needs tests in `test/*.test.js`. They must pass on Node 22 and 24.
+  For UI changes, run the app and check the affected screens.
+- **Privacy by design.** Keep processing local when possible, give users control over retention and deletion,
+  document what is stored and where, and store only what is needed.
 
-- **TypeScript strict mode** – avoid `any` and prefer explicit interfaces.
-- **React components** should be functional with hooks and wrapped in error
-  boundaries where appropriate.
-- **Secure IPC** – validate and sanitize all parameters crossing the renderer/main
-  boundary.
-- **Non‑blocking audio** – heavy processing must stay off the UI thread.
-- **Tests** – every new feature requires tests once the test suite is available.
+## Tests, CI and releases
 
-## Shadcn and Electron
+- CI (`.github/workflows/ci.yml`) runs the tests on every push to `master` and every pull request.
+- Pushing a `v*` tag runs `.github/workflows/release.yml`: it runs the tests, builds the Windows installer and portable ZIP,
+  and publishes a GitHub release using `.github/RELEASE_NOTES.md`.
+- To release: bump the version in `package.json`, rewrite `.github/RELEASE_NOTES.md`, update the README if needed, commit,
+  then tag and push.
 
-The interface is being rebuilt with [shadcn/ui](https://ui.shadcn.com) components.
-Follow these guidelines when working on UI code:
+## Commits and upstream PRs
 
-- **Component directory** – place generated files under `src/components/ui` and export them from that folder.
-- **Add components with the CLI** – run `npx shadcn@latest add <component>`; never hand-roll components.
-- **Component pattern** – use `React.forwardRef` with the `cn()` helper for class names.
-- **Path aliases** – import modules from `src` using the `@/` prefix.
-- **React 19 + Compiler** – target React 19 with the new compiler when available.
-- **Context isolation** – maintain Electron's context isolation pattern for IPC.
-- **TypeScript strict mode** – run `npm run typecheck` before claiming work complete.
-- **Tailwind theming** – rely on CSS variables and utilities in `@/utils/tailwind` for styling.
-- **Testing without running** – confirm `npm run typecheck` and module resolution with `node -e "require('<file>')"`.
+- Keep commit messages short and descriptive (`feat:`, `fix:`, `docs:`, `chore:`).
+- Do not add `Co-Authored-By` or "generated with" trailers.
+- Pull requests from <https://github.com/sohzm/cheating-daddy> are cherry-picked here. Inspect the diff, then run the app
+  locally and the tests after merging.
 
-## Tests
+## Audio principles
 
-No automated tests yet. When a suite is added, run `npm test` before each
-commit. Until then, at minimum ensure `npm install` and `npm start` work after
-merging upstream changes.
+- Resample all audio to 16 kHz before sending it to whisper.cpp.
+- Capture microphone and system audio on separate channels.
+- Pre-filter silence with voice activity detection (an energy-based VAD is implemented in `whisper-stt.js`).
+- Keep sample fidelity, avoid blocking the UI, and handle audio device failures gracefully.
 
-## Merging upstream PRs
+## Direction
 
-Pull requests from <https://github.com/sohzm/cheating-daddy> are commonly
-cherry‑picked here. When merging:
+Done: local transcription with whisper.cpp, dual-stream capture, energy-based VAD, CLI / BYOK / local providers,
+custom presets, live transcript, data retention controls, redesigned interface.
 
-1. Inspect the diff and keep commit messages short (`feat:` / `fix:` etc.).
-2. After merging, run the application locally to verify it still builds and
-   functions.
+Planned: context isolation with a preload bridge, speaker separation inside a single stream (tinydiarize is English-only
+today), a neural VAD if the energy-based one proves too coarse, removal of the old Gemini/Groq limit counters in `storage.js`,
+more tests around capture and IPC.
 
-## Strategy and Future Work
-
-We plan to extend this project with ideas from the
-[`transcriber`](https://github.com/Gatecrashah/transcriber) project which also
-uses Electron. Key goals are:
-
-- **Local Transcription** – integrate `whisper.cpp` to allow offline speech-to-
-  text. Investigate the architecture used in `transcriber/src/main` for model
-  validation and GPU acceleration.
-- **Dual Audio Capture** – capture microphone and system audio simultaneously.
-  `transcriber` shows one approach using a native helper for macOS and
-  Electron's `getDisplayMedia` for other platforms.
-- **Speaker Diarization** – explore tinydiarize for identifying speakers in mono
-  audio streams.
-- **Voice Activity Detection** – skip silent or low‑quality segments before
-  sending to the AI service.
-- **Improved Note Handling** – store transcriptions locally and associate them
-  with meeting notes, similar to `transcriber`'s note management system.
-- **Testing Infrastructure** – adopt Jest and React Testing Library (if React is
-  introduced) to cover audio capture and transcription modules.
-
-### TODO
-
-1. Research and prototype local transcription using `whisper.cpp`.
-2. Add dual‑stream audio capture logic for cross‑platform support.
-3. Investigate speaker diarization options and integrate when feasible.
-4. Plan a migration path toward a proper testing setup (Jest or similar).
-5. Document security considerations for audio storage and processing.
-6. Rebuild the entire UI using shadcn components.
-
-These plans are aspirational; implement them gradually while keeping the app
-functional.
-
-## Audio processing principles
-
-When implementing transcription features borrow the following rules from
-`transcriber`:
-
-- **16 kHz compatibility** – resample all audio before sending to whisper.cpp.
-- **Dual‑stream architecture** – capture microphone and system audio on separate
-  channels.
-- **Speaker diarization** – integrate tinydiarize (`--tinydiarize` flag) for mono
-  audio and parse `[SPEAKER_TURN]` markers to label speakers (Speaker A, B, C…).
-- **Voice activity detection** – pre‑filter silent segments to improve speed.
-- **Quality preservation** – keep sample fidelity and avoid blocking the UI
-  during heavy processing.
-- **Memory efficiency** – stream large audio files instead of loading them all at
-  once.
-- **Error recovery** – handle audio device failures gracefully.
-
-## Privacy by design
-
-- **Local processing** – transcriptions should happen locally whenever possible.
-- **User control** – provide clear options for data retention and deletion.
-- **Transparency** – document what is stored and where.
-- **Minimal data** – only persist what is required for functionality.
-
-## LLM plans
-
-There are placeholder files for future LLM integration (e.g. Qwen models via
-`llama.cpp`). Continue development after the core transcription pipeline is
-stable and ensure tests cover this new functionality.
+Decided against: a rewrite in Rust, and a migration to TypeScript, React or shadcn. The project stays on Lit and plain JavaScript.

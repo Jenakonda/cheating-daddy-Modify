@@ -38,11 +38,12 @@ using your own **Claude Pro** or **Google AI Pro** subscription — or fully off
 | 🔁 **Live provider switch** | Swap between Claude and Gemini mid-session with context preserved, plus auto-fallback on rate limits.                       |
 | 📂 **Context folder**       | Drop slides, PDFs, docs and notes — answers are grounded in your own material.                                              |
 | 🎯 **Presets**              | Job interview, exam, meeting, sales call, presentation, negotiation — plus your own custom presets with saved instructions. |
-| 📝 **Live transcript**      | See what was heard (You / Speaker) and send any line to the AI with one click.                                              |
+| 📝 **Live transcript**      | See what was heard (You / Speaker). Fix a misheard word with **Edit**, or send a line to the AI with **Ask**.               |
 | 📋 **Copy & export**        | Copy any answer, or export a whole session from History as a Markdown file.                                                 |
 | 🟢 **Subscription status**  | A status dot on the provider pill shows whether Claude or Gemini is working, rate-limited or needs sign-in.                 |
 | 🗂️ **Data control**         | See what is stored and how big it is, clear it by category, and auto-delete old history after 7, 30 or 90 days.             |
 | 🌍 **Multilingual**         | Auto-detect speech language; pick the response language (including Ukrainian).                                              |
+| 🎤 **Better recognition**   | Switch to the Large v3 Turbo model for non-English speech and add vocabulary hints for names and terms.                     |
 | ⌨️ **Keyboard-first**       | Every action has a customizable global shortcut.                                                                            |
 
 <br />
@@ -157,7 +158,7 @@ Preferences, credentials, session history, downloaded binaries and models, and t
 | **macOS**   | `~/Library/Application Support/cheating-daddy-config` |
 | **Linux**   | `~/.config/cheating-daddy-config`                     |
 
-Nothing personal is ever committed to this repository. Local mode keeps transcription and the language model entirely on-device.
+API keys are stored encrypted with your operating system (Windows DPAPI, macOS Keychain, Linux keyring) when it is available. Nothing personal is ever committed to this repository. Local mode keeps transcription and the language model entirely on-device.
 
 <br />
 
