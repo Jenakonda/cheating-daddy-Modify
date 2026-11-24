@@ -30,22 +30,28 @@ using your own **Claude Pro** or **Google AI Pro** subscription — or fully off
 
 ## ✨ Features
 
-|                             |                                                                                                       |
-| --------------------------- | ----------------------------------------------------------------------------------------------------- |
-| 🖥️ **Transparent overlay**  | Always-on-top window with content protection — hidden from screen shares and screenshots on Windows.  |
-| 🎙️ **Local voice-to-text**  | `whisper.cpp` with Vulkan GPU acceleration and a safe CPU fallback. No STT API keys.                  |
-| 🧠 **Bring your own AI**    | Claude Code CLI, Google Antigravity CLI (`agy`), Gemini / Groq keys, or a local GGUF model.           |
-| 🔁 **Live provider switch** | Swap between Claude and Gemini mid-session with context preserved, plus auto-fallback on rate limits. |
-| 📂 **Context folder**       | Drop slides, PDFs, docs and notes — answers are grounded in your own material.                        |
-| 🎯 **Presets**              | Job interview, exam, meeting, sales call, presentation, negotiation.                                  |
-| 🌍 **Multilingual**         | Auto-detect speech language; pick the response language (including Ukrainian).                        |
-| ⌨️ **Keyboard-first**       | Every action has a customizable global shortcut.                                                      |
+|                             |                                                                                                                             |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 🖥️ **Transparent overlay**  | Always-on-top window with content protection — hidden from screen shares and screenshots on Windows.                        |
+| 🎙️ **Local voice-to-text**  | `whisper.cpp` with Vulkan GPU acceleration and a safe CPU fallback. No STT API keys.                                        |
+| 🧠 **Bring your own AI**    | Claude Code CLI, Google Antigravity CLI (`agy`), Gemini / Groq keys, or a local GGUF model.                                 |
+| 🔁 **Live provider switch** | Swap between Claude and Gemini mid-session with context preserved, plus auto-fallback on rate limits.                       |
+| 📂 **Context folder**       | Drop slides, PDFs, docs and notes — answers are grounded in your own material.                                              |
+| 🎯 **Presets**              | Job interview, exam, meeting, sales call, presentation, negotiation — plus your own custom presets with saved instructions. |
+| 📝 **Live transcript**      | See what was heard (You / Speaker) and send any line to the AI with one click.                                              |
+| 📋 **Copy & export**        | Copy any answer, or export a whole session from History as a Markdown file.                                                 |
+| 🟢 **Subscription status**  | A status dot on the provider pill shows whether Claude or Gemini is working, rate-limited or needs sign-in.                 |
+| 🗂️ **Data control**         | See what is stored and how big it is, clear it by category, and auto-delete old history after 7, 30 or 90 days.             |
+| 🌍 **Multilingual**         | Auto-detect speech language; pick the response language (including Ukrainian).                                              |
+| ⌨️ **Keyboard-first**       | Every action has a customizable global shortcut.                                                                            |
 
 <br />
 
 <div align="center">
-<img src="docs/screenshots/live.png" alt="Live session" width="49%" />
+<img src="docs/screenshots/live.png" alt="Live session with transcript" width="49%" />
+<img src="docs/screenshots/ai-context.png" alt="Custom presets" width="49%" />
 <img src="docs/screenshots/settings.png" alt="Settings" width="49%" />
+<img src="docs/screenshots/data.png" alt="Data and storage" width="49%" />
 </div>
 
 <br />
@@ -107,25 +113,21 @@ npm start
 
 Verified `whisper.cpp` binaries and quantized models (`small-q5_1`, `base-q5_1`, `large-v3-turbo-q5_0`, …) are downloaded automatically on first launch. Vulkan GPU acceleration is enabled on supported Windows GPUs and falls back to CPU (`-ng`) if GPU initialization fails.
 
-| Audio input mode        | Captures                                                                                                                                                              |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **System audio only**   | Remote speakers (Zoom, Meet, browser output).                                                                                                                         |
-| **Microphone only**     | Your own voice.                                                                                                                                                       |
-| **Microphone + system** | Both. Your speech is buffered quietly as _silent microphone context_ and attached when the other side replies — or press **Далі** to get a 1–2 sentence continuation. |
+| Audio input mode        | Captures                                                                                                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **System audio only**   | Remote speakers (Zoom, Meet, browser output).                                                                                                                             |
+| **Microphone only**     | Your own voice.                                                                                                                                                           |
+| **Microphone + system** | Both. Your speech is buffered quietly as _silent microphone context_ and attached when the other side replies — or press **Continue** to get a 1–2 sentence continuation. |
 
 <br />
 
 ## 📂 Context folder
-
-<img align="right" src="docs/screenshots/ai-context.png" alt="AI context screen" width="320" />
 
 Drop files into the context folder right from **Home** or **AI Context**.
 
 - **Formats:** `.pptx` (slides + speaker notes), `.odp`, `.pdf` (per page, Unicode-safe), `.docx`, `.odt`, `.rtf`, `.xlsx`, `.html`, `.md`, `.txt`, `.csv`, `.json`, `.yaml` and source code.
 - **Full mode** (≤ 24,000 chars): everything is loaded into the session context and cached.
 - **Smart search** (> 24,000 chars): a compact catalog goes into the prompt and the top 5 matching chunks (`[Context: file · Slide/Page]`) are attached to each question.
-
-<br clear="right" />
 
 <br />
 
