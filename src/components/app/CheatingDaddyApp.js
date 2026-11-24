@@ -778,7 +778,7 @@ export class CheatingDaddyApp extends LitElement {
 
     async handleStart() {
         const prefs = await cheatingDaddy.storage.getPreferences();
-        const providerMode = prefs.providerMode === 'cloud' ? 'cli' : prefs.providerMode || 'cli';
+        const providerMode = prefs.providerMode === 'cloud' ? 'cli' : prefs.providerMode || 'cli'; // 'cloud' was removed; old settings fall back to CLI
 
         if (providerMode === 'cli') {
             const success = await cheatingDaddy.initializeCli(this.selectedProfile, this.selectedLanguage);
@@ -786,24 +786,6 @@ export class CheatingDaddyApp extends LitElement {
                 const mainView = this.shadowRoot.querySelector('main-view');
                 if (mainView && mainView.triggerCliError) {
                     mainView.triggerCliError();
-                }
-                return;
-            }
-        } else if (providerMode === 'cloud') {
-            const creds = await cheatingDaddy.storage.getCredentials();
-            if (!creds.cloudToken || creds.cloudToken.trim() === '') {
-                const mainView = this.shadowRoot.querySelector('main-view');
-                if (mainView && mainView.triggerApiKeyError) {
-                    mainView.triggerApiKeyError();
-                }
-                return;
-            }
-
-            const success = await cheatingDaddy.initializeCloud(this.selectedProfile);
-            if (!success) {
-                const mainView = this.shadowRoot.querySelector('main-view');
-                if (mainView && mainView.triggerApiKeyError) {
-                    mainView.triggerApiKeyError();
                 }
                 return;
             }
@@ -865,7 +847,7 @@ export class CheatingDaddyApp extends LitElement {
     async handleAPIKeyHelp() {
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
-            await ipcRenderer.invoke('open-external', 'https://cheatingdaddy.com/help/api-key');
+            await ipcRenderer.invoke('open-external', 'https://aistudio.google.com/apikey');
         }
     }
 

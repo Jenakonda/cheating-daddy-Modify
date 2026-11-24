@@ -16,7 +16,6 @@ const {
     getPreferences,
 } = require('../storage');
 const { loadContextFolder } = require('./context-folder');
-const { connectCloud, sendCloudAudio, sendCloudText, sendCloudImage, closeCloud, isCloudActive, setOnTurnComplete } = require('./cloud');
 const { startTransportLog, logTransportEvent, closeTransportLog } = require('./transportLogger');
 
 // Lazy-loaded to avoid circular dependency (localai.js and cliai.js import from gemini.js)
@@ -32,7 +31,7 @@ function getCliAi() {
     return _cliai;
 }
 
-// Provider mode: 'cli', 'byok', 'cloud', or 'local'
+// Provider mode: 'cli', 'byok', or 'local'
 let currentProviderMode = 'byok';
 
 // Groq conversation history for context
@@ -949,9 +948,7 @@ async function startMacOSAudioCapture(geminiSessionRef) {
 
             const monoChunk = CHANNELS === 2 ? convertStereoToMono(chunk) : chunk;
 
-            if (currentProviderMode === 'cloud') {
-                sendCloudAudio(monoChunk);
-            } else if (currentProviderMode === 'local') {
+            if (currentProviderMode === 'local') {
                 getLocalAi().processLocalAudio(monoChunk, 'interviewer');
             } else if (currentProviderMode === 'cli') {
                 getCliAi().processCliAudio(monoChunk, 'interviewer');
@@ -1085,25 +1082,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     // Store the geminiSessionRef globally for reconnection access
     global.geminiSessionRef = geminiSessionRef;
 
-    ipcMain.handle('initialize-cloud', async (event, token, profile, userContext) => {
-        try {
-            currentProviderMode = 'cloud';
-            initializeNewSession(profile);
-            setOnTurnComplete((transcription, response) => {
-                saveConversationTurn(transcription, response);
-            });
-            sendToRenderer('session-initializing', true);
-            await connectCloud(token, profile, userContext);
-            sendToRenderer('session-initializing', false);
-            return true;
-        } catch (err) {
-            console.error('[Cloud] Init error:', err);
-            currentProviderMode = 'byok';
-            sendToRenderer('session-initializing', false);
-            return false;
-        }
-    });
-
     ipcMain.handle('initialize-gemini', async (event, apiKey, customPrompt, profile = 'interview', language = 'en-US') => {
         currentProviderMode = 'byok';
         const session = await initializeGeminiSession(apiKey, customPrompt, profile, language);
@@ -1234,16 +1212,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
     ipcMain.handle('send-audio-content', async (event, { data, mimeType, sampleRate }) => {
         const resolvedRate = parseAudioSampleRate(mimeType, sampleRate);
-        if (currentProviderMode === 'cloud') {
-            try {
-                const pcmBuffer = Buffer.from(data, 'base64');
-                sendCloudAudio(pcmBuffer);
-                return { success: true };
-            } catch (error) {
-                console.error('Error sending cloud audio:', error);
-                return { success: false, error: error.message };
-            }
-        }
         if (currentProviderMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
@@ -1280,16 +1248,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     // Handle microphone audio on a separate channel
     ipcMain.handle('send-mic-audio-content', async (event, { data, mimeType, sampleRate }) => {
         const resolvedRate = parseAudioSampleRate(mimeType, sampleRate);
-        if (currentProviderMode === 'cloud') {
-            try {
-                const pcmBuffer = Buffer.from(data, 'base64');
-                sendCloudAudio(pcmBuffer);
-                return { success: true };
-            } catch (error) {
-                console.error('Error sending cloud mic audio:', error);
-                return { success: false, error: error.message };
-            }
-        }
         if (currentProviderMode === 'local') {
             try {
                 const pcmBuffer = Buffer.from(data, 'base64');
@@ -1339,14 +1297,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
 
             process.stdout.write('!');
 
-            if (currentProviderMode === 'cloud') {
-                const sent = sendCloudImage(data);
-                if (!sent) {
-                    return { success: false, error: 'Cloud connection not active' };
-                }
-                return { success: true, model: 'cloud' };
-            }
-
             if (currentProviderMode === 'local') {
                 const result = await getLocalAi().sendLocalImage(data, prompt);
                 return result;
@@ -1368,17 +1318,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     ipcMain.handle('send-text-message', async (event, text) => {
         if (!text || typeof text !== 'string' || text.trim().length === 0) {
             return { success: false, error: 'Invalid text message' };
-        }
-
-        if (currentProviderMode === 'cloud') {
-            try {
-                console.log('Sending text to cloud:', text);
-                sendCloudText(text.trim());
-                return { success: true };
-            } catch (error) {
-                console.error('Error sending cloud text:', error);
-                return { success: false, error: error.message };
-            }
         }
 
         if (currentProviderMode === 'local') {
@@ -1449,13 +1388,6 @@ function setupGeminiIpcHandlers(geminiSessionRef) {
     ipcMain.handle('close-session', async event => {
         try {
             stopMacOSAudioCapture();
-
-            if (currentProviderMode === 'cloud') {
-                closeCloud();
-                currentProviderMode = 'byok';
-                closeTransportLog();
-                return { success: true };
-            }
 
             if (currentProviderMode === 'local') {
                 getLocalAi().closeLocalSession();
