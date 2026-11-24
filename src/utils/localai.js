@@ -291,8 +291,14 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
             },
             onStatus: status => sendToRenderer('update-status', status),
             onProgress: (label, progress) => sendDownloadProgress(label, progress),
-            onTranscription: async text => {
+            onTranscription: async (text, source) => {
                 if (!isLocalActive) return;
+                sendToRenderer('transcript-line', {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                    source: source === 'candidate' ? 'you' : 'speaker',
+                    text,
+                    ts: Date.now(),
+                });
                 sendToRenderer('update-status', 'Generating response...');
                 await sendToLlama(text);
             },

@@ -6,6 +6,7 @@ const { loadContextFolder, searchContextBundle } = require('./context-folder');
 const { logTransportEvent } = require('./transportLogger');
 const { WhisperSttEngine, VAD_MODES } = require('./whisper-stt');
 const { ClaudeCliRunner, createGoogleCliRunner, normalizeClaudeEffort, resolveCliBinary } = require('./cli-runners');
+const { createHealthTracker } = require('./cli-health');
 
 function getGeminiBridge() {
     return require('./gemini');
@@ -64,6 +65,8 @@ function createCliSessionManager(deps = {}) {
     const createGoogleRunnerFn =
         deps.createGoogleCliRunner || (deps.GeminiCliRunner ? opts => new deps.GeminiCliRunner(opts) : createGoogleCliRunner);
     const whisperEngine = deps.whisperEngine || new WhisperSttEngine();
+    const healthTracker = deps.healthTracker || createHealthTracker();
+    let transcriptCounter = 0;
 
     let isCliActive = false;
     let initializationController = null;
@@ -95,6 +98,20 @@ function createCliSessionManager(deps = {}) {
             availableProviders: getAvailableProviders(),
             fallbackEnabled,
             reason,
+        });
+    }
+
+    function emitHealth() {
+        sendToRenderer('cli-health', healthTracker.snapshot());
+    }
+
+    function emitTranscriptLine(source, text) {
+        transcriptCounter += 1;
+        sendToRenderer('transcript-line', {
+            id: `${Date.now()}-${transcriptCounter}`,
+            source: source === 'candidate' ? 'you' : 'speaker',
+            text,
+            ts: Date.now(),
         });
     }
 
@@ -130,6 +147,8 @@ function createCliSessionManager(deps = {}) {
         if (!cleanText || !isCliActive) {
             return;
         }
+
+        emitTranscriptLine(source, cleanText);
 
         if (audioMode === 'both' && micContextOnly && source === 'candidate') {
             pendingCandidateUtterances.push(cleanText);
@@ -239,6 +258,8 @@ function createCliSessionManager(deps = {}) {
         const historyUserLabel = isScreenAnalysis ? `[Screen analysis] ${text}` : text;
         pushConversationTurn(historyUserLabel, finalText);
         providerSyncedTurns[provider] = conversationHistory.length;
+        healthTracker.recordSuccess(provider);
+        emitHealth();
 
         if (isScreenAnalysis) {
             saveScreenAnalysis(text, finalText, `cli:${provider}:${runnerModels[provider]}`);
@@ -295,6 +316,8 @@ function createCliSessionManager(deps = {}) {
                     code: primaryError.code || 'EXECUTION_ERROR',
                     error: primaryError.message,
                 });
+                healthTracker.recordFailure(primary, { code: primaryError.code, message: primaryError.message });
+                emitHealth();
 
                 const canFallback = fallbackEnabled && Boolean(runners[secondary]) && primaryError.fallbackRecommended !== false;
 
@@ -327,6 +350,8 @@ function createCliSessionManager(deps = {}) {
                         code: secondaryError.code || 'EXECUTION_ERROR',
                         error: secondaryError.message,
                     });
+                    healthTracker.recordFailure(secondary, { code: secondaryError.code, message: secondaryError.message });
+                    emitHealth();
                     sendToRenderer('update-status', `Both CLIs failed: ${secondaryError.message}`);
                     return { success: false, error: secondaryError.message };
                 }
@@ -512,6 +537,8 @@ function createCliSessionManager(deps = {}) {
 
             sendToRenderer('local-ai-download-progress', { active: false });
             sendToRenderer('session-initializing', false);
+            healthTracker.reset();
+            emitHealth();
             emitProviderChanged();
             sendToRenderer(
                 'update-status',

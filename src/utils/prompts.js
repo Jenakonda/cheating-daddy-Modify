@@ -1,3 +1,5 @@
+const { isCustomPresetId, buildPresetPromptParts } = require('./presets');
+
 const profilePrompts = {
     interview: {
         intro: `You are an AI-powered interview assistant, designed to act as a discreet on-screen teleprompter. Your mission is to help the user excel in their job interview by providing concise, impactful, and ready-to-speak answers or key talking points. Analyze the ongoing interview dialogue and, crucially, the 'User-provided context' below.`,
@@ -288,8 +290,24 @@ function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled =
     return sections.join('');
 }
 
-function getSystemPrompt(profile, customPrompt = '', googleSearchEnabled = true, responseLanguage = 'auto', folderContext = null) {
-    const promptParts = profilePrompts[profile] || profilePrompts.interview;
+function loadStoredCustomPresets() {
+    try {
+        return require('../storage').getPreferences().customPresets || [];
+    } catch {
+        return [];
+    }
+}
+
+function getSystemPrompt(
+    profile,
+    customPrompt = '',
+    googleSearchEnabled = true,
+    responseLanguage = 'auto',
+    folderContext = null,
+    customPresets = undefined
+) {
+    const presets = customPresets !== undefined ? customPresets : isCustomPresetId(profile) ? loadStoredCustomPresets() : [];
+    const promptParts = buildPresetPromptParts(profile, presets, profilePrompts);
     return buildSystemPrompt(promptParts, customPrompt, googleSearchEnabled, responseLanguage, folderContext);
 }
 

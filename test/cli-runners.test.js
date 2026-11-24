@@ -525,6 +525,15 @@ test('createCliSessionManager handles auto-fallback with context sync, manual sw
         const providerChangeEvents = events.filter(e => e.channel === 'cli-provider-changed');
         assert.ok(providerChangeEvents.some(e => e.data.provider === 'gemini' && e.data.reason === 'RATE_LIMIT'));
 
+        // Subscription health: Claude was working, then hit the rate limit; Gemini answered the retry
+        const healthEvents = events.filter(e => e.channel === 'cli-health');
+        const lastHealth = healthEvents[healthEvents.length - 1].data;
+        assert.equal(lastHealth.claude.state, 'limited');
+        assert.equal(lastHealth.claude.turns, 1);
+        assert.equal(lastHealth.claude.failures, 1);
+        assert.equal(lastHealth.gemini.state, 'ok');
+        assert.equal(lastHealth.gemini.turns, 1);
+
         // Switch manually back to Claude and analyze screen
         const sw = manager.switchCliProvider('claude');
         assert.equal(sw.success, true);
@@ -720,14 +729,14 @@ test('createCliSessionManager buffers candidate speech in both+micContextOnly mo
         const ctxEvents2 = events.filter(e => e.channel === 'cli-candidate-context');
         assert.equal(ctxEvents2[ctxEvents2.length - 1].data.count, 0);
 
-        // 3. Candidate gets stuck -> "Далі" (suggestCliContinuation) uses newly buffered phrase
+        // 3. Candidate gets stuck -> "Continue" (suggestCliContinuation) uses newly buffered phrase
         await capturedOnTranscription('Ми використовували PostgreSQL і...', 'candidate', { inferMs: 110 });
         const contRes1 = await manager.suggestCliContinuation();
         assert.equal(contRes1.success, true);
         assert.ok(contRes1.text.includes('[Candidate just started saying]:'));
         assert.ok(contRes1.text.includes('Ми використовували PostgreSQL і...'));
 
-        // 4. Calling "Далі" with empty buffer still succeeds gracefully
+        // 4. Calling "Continue" with empty buffer still succeeds gracefully
         const contRes2 = await manager.suggestCliContinuation();
         assert.equal(contRes2.success, true);
         assert.ok(contRes2.text.includes('follow-up sentences'));

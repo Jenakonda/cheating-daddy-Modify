@@ -1,5 +1,8 @@
 // renderer.js
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, clipboard } = require('electron');
+const presetsLib = require('./utils/presets.js');
+const { describeHealth } = require('./utils/cli-health.js');
+const { sessionToMarkdown, suggestExportFileName } = require('./utils/session-export.js');
 
 let mediaStream = null;
 let micMediaStream = null;
@@ -1212,6 +1215,55 @@ const theme = {
     },
 };
 
+// ============ PRESETS ============
+// Built-in presets plus the user's custom presets (stored in preferences)
+const presets = {
+    builtIn: presetsLib.BUILT_IN_PRESETS,
+    lib: presetsLib,
+    async getCustom() {
+        const prefs = await storage.getPreferences();
+        return presetsLib.sanitizeCustomPresets(prefs.customPresets);
+    },
+    async list() {
+        return presetsLib.listPresets(await this.getCustom());
+    },
+    async label(id) {
+        return presetsLib.getPresetLabel(id, await this.getCustom());
+    },
+    async saveCustom(customPresets) {
+        const cleaned = presetsLib.sanitizeCustomPresets(customPresets);
+        await storage.updatePreference('customPresets', cleaned);
+        window.dispatchEvent(new CustomEvent('presets-changed'));
+        return cleaned;
+    },
+};
+
+// ============ DATA, EXPORT AND CLIPBOARD ============
+const dataApi = {
+    getUsage: async () => ipcRenderer.invoke('data:get-usage'),
+    clearCategory: async categoryId => ipcRenderer.invoke('data:clear-category', categoryId),
+    pruneHistory: async () => ipcRenderer.invoke('data:prune-history'),
+};
+
+function copyText(text) {
+    try {
+        clipboard.writeText(String(text ?? ''));
+        return true;
+    } catch (error) {
+        console.warn('Clipboard write failed:', error);
+        return false;
+    }
+}
+
+async function exportSessionMarkdown(session, presetLabel = null, formatDate = undefined) {
+    const content = sessionToMarkdown(session, { presetLabel, formatDate });
+    return ipcRenderer.invoke('export:save-markdown', { fileName: suggestExportFileName(session), content });
+}
+
+function sessionMarkdown(session, presetLabel = null, formatDate = undefined) {
+    return sessionToMarkdown(session, { presetLabel, formatDate });
+}
+
 // Consolidated cheatingDaddy object - all functions in one place
 const cheatingDaddy = {
     // App version
@@ -1249,6 +1301,15 @@ const cheatingDaddy = {
 
     // Storage API
     storage,
+
+    // Presets, data management, export and updates
+    presets,
+    data: dataApi,
+    copyText,
+    describeCliHealth: (entry, now = Date.now()) => describeHealth(entry, now),
+    exportSessionMarkdown,
+    sessionMarkdown,
+    checkForUpdates: async () => ipcRenderer.invoke('check-for-updates'),
 
     // Theme API
     theme,

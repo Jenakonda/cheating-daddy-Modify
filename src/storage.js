@@ -2,6 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
+const { sanitizeCustomPresets } = require('./utils/presets');
+const { getDataUsage: measureDataUsage, clearDataCategory: clearDataCategoryOnDisk, pruneOldSessions } = require('./utils/data-usage');
+
 const CONFIG_VERSION = 1;
 
 // Default values
@@ -24,6 +27,8 @@ const DEFAULT_PREFERENCES = {
     customPrompt: '',
     providerMode: 'cli',
     selectedProfile: 'interview',
+    customPresets: [],
+    historyRetentionDays: 0,
     selectedLanguage: 'auto',
     responseLanguage: 'auto',
     contextFolderEnabled: true,
@@ -243,18 +248,34 @@ function getPreferences() {
 
     preferences.whisperModel = legacyWhisperModels[preferences.whisperModel] || preferences.whisperModel;
     preferences.cliGeminiModel = legacyGeminiCliModels[preferences.cliGeminiModel] || preferences.cliGeminiModel;
+    preferences.customPresets = sanitizeCustomPresets(preferences.customPresets);
     return preferences;
+}
+
+function normalizePreferenceValue(key, value) {
+    if (key === 'customPresets') {
+        return sanitizeCustomPresets(value);
+    }
+    if (key === 'historyRetentionDays') {
+        const days = Number(value);
+        return Number.isFinite(days) && days > 0 ? Math.min(Math.round(days), 3650) : 0;
+    }
+    return value;
 }
 
 function setPreferences(preferences) {
     const current = getPreferences();
-    const updated = { ...current, ...preferences };
+    const incoming = {};
+    for (const [key, value] of Object.entries(preferences || {})) {
+        incoming[key] = normalizePreferenceValue(key, value);
+    }
+    const updated = { ...current, ...incoming };
     return writeJsonFile(getPreferencesPath(), updated);
 }
 
 function updatePreference(key, value) {
     const preferences = getPreferences();
-    preferences[key] = value;
+    preferences[key] = normalizePreferenceValue(key, value);
     return writeJsonFile(getPreferencesPath(), preferences);
 }
 
@@ -511,6 +532,21 @@ function deleteAllSessions() {
     }
 }
 
+// ============ DATA MANAGEMENT ============
+
+function getDataUsage() {
+    return measureDataUsage(getConfigDir());
+}
+
+function clearDataCategory(categoryId) {
+    return clearDataCategoryOnDisk(getConfigDir(), categoryId);
+}
+
+function pruneHistory() {
+    const days = getPreferences().historyRetentionDays;
+    return pruneOldSessions(getHistoryDir(), days);
+}
+
 // ============ CLEAR ALL DATA ============
 
 function clearAllData() {
@@ -561,6 +597,11 @@ module.exports = {
     getAllSessions,
     deleteSession,
     deleteAllSessions,
+
+    // Data management
+    getDataUsage,
+    clearDataCategory,
+    pruneHistory,
 
     // Clear all
     clearAllData,

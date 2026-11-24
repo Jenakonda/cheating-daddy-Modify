@@ -9,6 +9,10 @@ const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const { loadContextFolder, summarizeContextBundle, copyFilesIntoContextFolder, clearContextCache } = require('./utils/context-folder');
 const storage = require('./storage');
+const { checkForUpdates } = require('./utils/update-check');
+const { formatBytes } = require('./utils/data-usage');
+
+const MAX_EXPORT_BYTES = 5 * 1024 * 1024;
 
 const geminiSessionRef = { current: null };
 let mainWindow = null;
@@ -37,6 +41,16 @@ if (hasSingleInstanceLock) {
     app.whenReady().then(async () => {
         // Initialize storage (checks version, resets if needed)
         storage.initializeStorage();
+
+        // Apply the history retention setting (does nothing when retention is off)
+        try {
+            const removed = storage.pruneHistory();
+            if (removed > 0) {
+                console.log(`Removed ${removed} saved session(s) older than the retention period`);
+            }
+        } catch (error) {
+            console.warn('History pruning failed:', error.message);
+        }
 
         // Trigger screen recording permission prompt on macOS if not already granted
         if (process.platform === 'darwin') {
@@ -273,6 +287,38 @@ function setupStorageIpcHandlers() {
         }
     });
 
+    // ============ DATA MANAGEMENT ============
+    ipcMain.handle('data:get-usage', async () => {
+        try {
+            const usage = storage.getDataUsage().map(item => ({ ...item, size: formatBytes(item.bytes) }));
+            return { success: true, data: usage };
+        } catch (error) {
+            console.error('Error reading data usage:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('data:clear-category', async (event, categoryId) => {
+        if (typeof categoryId !== 'string') {
+            return { success: false, error: 'Invalid category' };
+        }
+        try {
+            return storage.clearDataCategory(categoryId);
+        } catch (error) {
+            console.error('Error clearing data category:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('data:prune-history', async () => {
+        try {
+            return { success: true, removed: storage.pruneHistory() };
+        } catch (error) {
+            console.error('Error pruning history:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
     // ============ CLEAR ALL ============
     ipcMain.handle('storage:clear-all', async () => {
         try {
@@ -307,6 +353,37 @@ function setupGeneralIpcHandlers() {
             return { success: true };
         } catch (error) {
             console.error('Error opening external URL:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('check-for-updates', async () => {
+        return checkForUpdates({ currentVersion: app.getVersion() });
+    });
+
+    ipcMain.handle('export:save-markdown', async (event, payload = {}) => {
+        try {
+            const content = typeof payload.content === 'string' ? payload.content : '';
+            if (!content || Buffer.byteLength(content, 'utf8') > MAX_EXPORT_BYTES) {
+                return { success: false, error: 'Nothing to export or the export is too large' };
+            }
+
+            const rawName = typeof payload.fileName === 'string' ? payload.fileName : 'cheating-daddy-session.md';
+            const safeName = path.basename(rawName).replace(/[^\w.\- ]+/g, '_') || 'cheating-daddy-session.md';
+            const dialogParent = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+            const result = await dialog.showSaveDialog(dialogParent, {
+                title: 'Export session',
+                defaultPath: path.join(app.getPath('documents'), safeName),
+                filters: [{ name: 'Markdown', extensions: ['md'] }],
+            });
+            if (result.canceled || !result.filePath) {
+                return { success: true, canceled: true };
+            }
+
+            await fs.promises.writeFile(result.filePath, content, 'utf8');
+            return { success: true, canceled: false, path: result.filePath };
+        } catch (error) {
+            console.error('Error exporting session:', error);
             return { success: false, error: error.message };
         }
     });
