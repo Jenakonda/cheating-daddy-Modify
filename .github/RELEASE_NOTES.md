@@ -1,23 +1,23 @@
-## Cheating Daddy 0.9.0 — a calmer, simpler interface
-
-The whole app now shares one dark design system: flat surfaces, a single soft accent, and clear typography. Nothing changes in how sessions, CLI providers or Whisper work.
+## Cheating Daddy 0.10.0 — your presets, a live transcript and control over your data
 
 ### What's new
 
-- **New design system.** One palette, spacing and radius scale for every screen; the accent now marks only what is selected or active.
-- **Windows-style window controls** (minimize and close on the right) replace the macOS traffic lights, and the sidebar gets a logo mark and cleaner navigation.
-- **Home is shorter.** _Start Session_ sits right under the CLI status cards, and the _CLI Provider_, _AI Models & Effort_ and _Voice Transcription_ sections are collapsed by default.
-- **Live session bar.** Provider switch, _Далі_ continuation pill, status, timer, _Hide_ and a _Click-through_ badge. The session title no longer overlaps the other elements when click-through is on.
-- **Onboarding** is dark and static (no animated background) with a close button and step indicator.
-- **Settings, AI Customization, History and Help** share the same cards, controls and thin scrollbars; select boxes no longer truncate their text.
-- **Opaque dialogs.** Setup dialogs ignore the background-transparency setting, so the page behind never shows through.
-- **Better contrast** for secondary text.
+- **Custom presets.** Create your own presets in **AI Context → My presets**: a name, a built-in preset to start from, and your own instructions. They show up next to the built-in ones on Home, in the session bar and in History.
+- **Live transcript.** A new **Transcript** panel in the session shows what was heard, split into _You_ and _Speaker_. Press **Ask** next to any line to send it to the AI as a question. Works in CLI and Local AI modes.
+- **Subscription status.** A colored dot on the provider pill shows whether Claude or Gemini is working, rate-limited or needs sign-in. Hover it for details such as _Rate limit reached 2 min ago_.
+- **Copy and export.** **Copy** the current answer in one click. In History, **Copy** or **Export .md** a whole session as Markdown. Your custom prompt (for example a CV) is never exported.
+- **Data and storage.** **Settings → Data and storage** shows how much space history, models, speech engines and logs use, lets you clear each of them, and can delete old history automatically after 7, 30 or 90 days.
+- **Continue.** The last Ukrainian label in the session bar (_Далі_) is now **Continue**.
+
+### Fixes
+
+- **Update check.** The _Update available_ button now checks the releases of this fork instead of the original project, so it no longer reports updates that are not for you.
+- **Shutdown on Node 22.** Fixed a hang while closing CLI sessions that also made the test suite fail on newer Node versions.
 
 ### Under the hood
 
-- Design tokens live in `src/index.html` and the `dark` theme in `src/utils/renderer.js`; other themes keep working and pick up the new accent variables.
-- Removed the unused animated button background and its canvases.
-- Source formatted with Prettier; all 33 tests pass.
+- New tested modules for presets, update checks, subscription health, data usage and Markdown export; 56 automated tests pass on Node 22 and 24.
+- Presets and retention are validated before they are saved.
 
 ### Install
 
