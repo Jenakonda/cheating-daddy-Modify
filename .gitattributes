@@ -1,0 +1,14 @@
+# Keep source files on LF so edits and formatting are identical on every machine
+* text=auto eol=lf
+
+# Windows scripts need CRLF
+*.vbs text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.png binary
+*.ico binary
+*.icns binary
+*.exe binary
+*.dll binary

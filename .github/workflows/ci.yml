@@ -1,0 +1,60 @@
+name: CI
+
+on:
+    push:
+        branches: [master]
+    pull_request:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    test:
+        name: Tests (Node ${{ matrix.node-version }})
+        runs-on: windows-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                node-version: [22, 24]
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ matrix.node-version }}
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci --ignore-scripts
+
+            - name: Run automated tests
+              run: npm test
+
+    ui-smoke:
+        name: UI smoke test
+        runs-on: windows-latest
+        timeout-minutes: 15
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Ensure Electron binary is ready
+              run: node node_modules/electron/install.js
+
+            - name: Run UI smoke tests
+              run: npm run test:ui
