@@ -105,3 +105,15 @@ test('getSystemPrompt uses explicitly passed custom presets', () => {
     assert.ok(prompt.includes('Always answer with a SQL query.'));
     assert.ok(!getSystemPrompt('exam', '', false, 'auto', null, custom).includes('CUSTOM PRESET'));
 });
+
+test('every preset tells the model how to handle misheard speech and to state its assumption', () => {
+    const custom = [{ id: 'custom:db', name: 'Database exam', basePreset: 'exam', instructions: 'Be brief.' }];
+    const ids = [...BUILT_IN_PRESETS.map(preset => preset.value), 'custom:db'];
+
+    for (const id of ids) {
+        const prompt = getSystemPrompt(id, '', false, 'uk', null, custom);
+        assert.ok(prompt.includes('Garbled wording'), `${id} is missing the garbled wording rule`);
+        assert.ok(prompt.includes('Assumed question'), `${id} is missing the assumed question rule`);
+        assert.ok(prompt.includes('only when you had to reinterpret'), `${id} must keep clear questions free of the extra line`);
+    }
+});

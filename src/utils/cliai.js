@@ -469,6 +469,7 @@ function createCliSessionManager(deps = {}) {
                 await whisperEngine.start({
                     whisperModel,
                     language,
+                    initialPrompt: options.speechVocabulary ?? prefs.speechVocabulary ?? '',
                     vadMode: VAD_MODES.BALANCED,
                     onStatus: status => sendToRenderer('update-status', status),
                     onProgress: (label, progress) => sendDownloadProgress(label, progress),

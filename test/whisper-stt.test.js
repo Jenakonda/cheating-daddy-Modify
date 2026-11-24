@@ -373,3 +373,48 @@ test('scripts/start-hidden helpers detect IDE environments and strip ELECTRON_RU
     assert.equal(opts.env.ELECTRON_RUN_AS_NODE, undefined);
     assert.equal(opts.env.PATH, 'C:\\Windows');
 });
+
+test('sanitizeInitialPrompt cleans vocabulary hints and limits their length', () => {
+    const { sanitizeInitialPrompt } = require('../src/utils/whisper-stt');
+
+    assert.equal(sanitizeInitialPrompt('  мегабайт,\n терабайт\t\tSQL  '), 'мегабайт, терабайт SQL');
+    assert.equal(sanitizeInitialPrompt(null), '');
+    assert.equal(sanitizeInitialPrompt(undefined), '');
+    assert.equal(sanitizeInitialPrompt('a\u0000b\u001fc'), 'a b c');
+    assert.equal(sanitizeInitialPrompt('x'.repeat(1000)).length, 400);
+});
+
+test('WhisperSttEngine sends vocabulary hints as the Whisper prompt only when they are set', async () => {
+    const sentPrompts = [];
+    const makeEngine = () =>
+        new WhisperSttEngine({
+            ensureNativeBinary: async () => 'mock-whisper',
+            ensureWhisperModel: async () => 'mock-model.bin',
+            getAvailablePort: async () => 19998,
+            startNativeServer: () => ({ exitCode: null, kill() {} }),
+            stopNativeServer: () => {},
+            waitForServer: async () => {},
+            fetchImpl: async (url, { body }) => {
+                sentPrompts.push(body.get('prompt'));
+                return {
+                    ok: true,
+                    json: async () => ({ text: 'ok', language: 'ukrainian', segments: [{ avg_logprob: -0.2, no_speech_prob: 0.01 }] }),
+                };
+            },
+        });
+
+    const withHints = makeEngine();
+    const without = makeEngine();
+    try {
+        await withHints.start({ whisperModel: 'small-q5_1', language: 'uk-UA', initialPrompt: '  мегабайт, терабайт  ' });
+        await withHints._transcribeAudioDetailed(Buffer.alloc(3200));
+
+        await without.start({ whisperModel: 'small-q5_1', language: 'uk-UA' });
+        await without._transcribeAudioDetailed(Buffer.alloc(3200));
+    } finally {
+        withHints.stop();
+        without.stop();
+    }
+
+    assert.deepEqual(sentPrompts, ['мегабайт, терабайт', null]);
+});

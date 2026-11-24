@@ -218,6 +218,12 @@ export class AssistantView extends LitElement {
             cursor: text;
         }
 
+        .transcript-actions {
+            flex-shrink: 0;
+            display: flex;
+            gap: 6px;
+        }
+
         .transcript-ask {
             flex-shrink: 0;
             padding: 1px 8px;
@@ -649,6 +655,15 @@ export class AssistantView extends LitElement {
         this._showTranscript = !this._showTranscript;
     }
 
+    // Puts a transcript line into the message box so a misheard word can be fixed before it is sent
+    _editLine(line) {
+        const input = this.shadowRoot.querySelector('#textInput');
+        if (!input || !line?.text) return;
+        input.value = line.text;
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+    }
+
     _askAboutLine(line) {
         if (line?.text) {
             this.onSendText(line.text);
@@ -670,15 +685,14 @@ export class AssistantView extends LitElement {
                     gfm: true,
                     sanitize: false,
                 });
-                let rendered = window.marked.parse(content);
-                rendered = this.wrapWordsInSpans(rendered);
-                return rendered;
+                const rendered = cheatingDaddy.sanitizeHtml(window.marked.parse(content));
+                return this.wrapWordsInSpans(rendered);
             } catch (error) {
                 console.warn('Error parsing markdown:', error);
-                return content;
+                return cheatingDaddy.escapeHtml(content);
             }
         }
-        return content;
+        return cheatingDaddy.escapeHtml(content);
     }
 
     wrapWordsInSpans(html) {
@@ -1045,10 +1059,28 @@ export class AssistantView extends LitElement {
                               line => html`
                                   <div class="transcript-line">
                                       <span class="transcript-who ${line.source}">${line.source === 'you' ? 'You' : 'Speaker'}</span>
-                                      <span class="transcript-text">${line.text}</span>
-                                      <button class="transcript-ask" @click=${() => this._askAboutLine(line)} title="Send this line as a question">
-                                          Ask
-                                      </button>
+                                      <span
+                                          class="transcript-text"
+                                          title="Double-click to edit before sending"
+                                          @dblclick=${() => this._editLine(line)}
+                                          >${line.text}</span
+                                      >
+                                      <span class="transcript-actions">
+                                          <button
+                                              class="transcript-ask"
+                                              @click=${() => this._editLine(line)}
+                                              title="Put this line in the message box to fix it first"
+                                          >
+                                              Edit
+                                          </button>
+                                          <button
+                                              class="transcript-ask"
+                                              @click=${() => this._askAboutLine(line)}
+                                              title="Send this line as a question"
+                                          >
+                                              Ask
+                                          </button>
+                                      </span>
                                   </div>
                               `
                           )

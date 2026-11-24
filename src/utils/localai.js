@@ -284,6 +284,7 @@ async function initializeLocalSession(model, whisperModel, profile, customPrompt
         await whisperEngine.start({
             whisperModel,
             language: selectedLanguage,
+            initialPrompt: prefs.speechVocabulary || '',
             vadMode: VAD_MODES.VERY_AGGRESSIVE,
             preparedFiles: {
                 whisperBinaryPath: nativeFiles.whisperBinaryPath,

@@ -16,6 +16,17 @@ const VAD_MODES = {
     VERY_AGGRESSIVE: { energyThreshold: 0.02, speechFramesRequired: 2, silenceFramesRequired: 15 },
 };
 
+const MAX_INITIAL_PROMPT_LENGTH = 400;
+
+/** Cleans the user's vocabulary hints so they are safe to send to Whisper as an initial prompt. */
+function sanitizeInitialPrompt(value) {
+    return String(value ?? '')
+        .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, MAX_INITIAL_PROMPT_LENGTH);
+}
+
 const DEFAULT_PRE_ROLL_FRAMES = 6;
 const DEFAULT_MIN_SPEECH_BYTES = 16000; // 0.5s at 16 kHz, 16-bit mono
 const DEFAULT_MAX_SPEECH_BYTES = 16000 * 2 * 12; // 12s max segment (fits cleanly within -ac 640)
@@ -280,6 +291,7 @@ class WhisperSttEngine {
         this.whisperBaseUrl = null;
         this.isActive = false;
         this.whisperLanguage = 'auto';
+        this.initialPrompt = '';
         this.vadConfig = VAD_MODES.VERY_AGGRESSIVE;
         this.onStatus = null;
         this.onTranscription = null;
@@ -339,6 +351,7 @@ class WhisperSttEngine {
     async start({
         whisperModel = 'small-q5_1',
         language = 'auto',
+        initialPrompt = '',
         vadMode = VAD_MODES.VERY_AGGRESSIVE,
         onStatus = null,
         onProgress = null,
@@ -355,6 +368,7 @@ class WhisperSttEngine {
         this.onFiltered = onFiltered;
         this.vadConfig = vadMode || VAD_MODES.VERY_AGGRESSIVE;
         this.whisperLanguage = mapSpeechLanguageToWhisper(language, whisperModel);
+        this.initialPrompt = sanitizeInitialPrompt(initialPrompt);
 
         const files =
             preparedFiles ||
@@ -606,6 +620,9 @@ class WhisperSttEngine {
         formData.append('temperature_inc', '0.0');
         formData.append('no_timestamps', 'true');
         formData.append('language', this.whisperLanguage || 'auto');
+        if (this.initialPrompt) {
+            formData.append('prompt', this.initialPrompt);
+        }
 
         const startedAt = Date.now();
         const response = await this.fetchImpl(`${this.whisperBaseUrl}/inference`, {
@@ -668,4 +685,5 @@ module.exports = {
     mapSpeechLanguageToWhisper,
     isNoiseOrHallucination,
     isLowConfidenceWhisperResult,
+    sanitizeInitialPrompt,
 };
