@@ -3,6 +3,7 @@ const path = require('path');
 const os = require('os');
 
 const { sanitizeCustomPresets } = require('./utils/presets');
+const { createSecretStore } = require('./utils/secret-store');
 const { getDataUsage: measureDataUsage, clearDataCategory: clearDataCategoryOnDisk, pruneOldSessions } = require('./utils/data-usage');
 
 const CONFIG_VERSION = 1;
@@ -29,6 +30,7 @@ const DEFAULT_PREFERENCES = {
     selectedProfile: 'interview',
     customPresets: [],
     historyRetentionDays: 0,
+    speechVocabulary: '',
     selectedLanguage: 'auto',
     responseLanguage: 'auto',
     contextFolderEnabled: true,
@@ -118,6 +120,49 @@ function readJsonFile(filePath, defaultValue) {
     return defaultValue;
 }
 
+// API keys are encrypted at rest once Electron's safeStorage is provided (see setSecretStore)
+let secretStore = createSecretStore(null);
+
+function setSecretStore(safeStorage) {
+    secretStore = createSecretStore(safeStorage);
+}
+
+// Writes through a temporary file so a crash cannot leave a half-written credentials file
+function writeJsonFileAtomic(filePath, data) {
+    const tempPath = `${filePath}.tmp`;
+    try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+        fs.renameSync(tempPath, filePath);
+        return true;
+    } catch (error) {
+        console.error(`Error writing ${filePath}:`, error.message);
+        try {
+            fs.rmSync(tempPath, { force: true });
+        } catch {
+            // Ignore cleanup errors
+        }
+        return false;
+    }
+}
+
+// Encrypts plain API keys that older versions saved. The file is replaced only after the encrypted copy
+// has been decrypted again and matches, otherwise it is left exactly as it was.
+function migrateCredentials() {
+    const credentialsPath = getCredentialsPath();
+    const raw = readJsonFile(credentialsPath, null);
+    if (!raw || !secretStore.needsMigration(raw)) {
+        return { migrated: false };
+    }
+
+    const encrypted = secretStore.buildVerifiedMigration(raw);
+    if (!encrypted) {
+        console.warn('Could not verify encrypted credentials, leaving the file unchanged');
+        return { migrated: false, error: 'verification failed' };
+    }
+    return { migrated: writeJsonFileAtomic(credentialsPath, encrypted) };
+}
+
 // Helper to write JSON file safely
 function writeJsonFile(filePath, data) {
     try {
@@ -182,6 +227,15 @@ function initializeStorage() {
             fs.mkdirSync(historyDir, { recursive: true });
         }
     }
+
+    try {
+        const result = migrateCredentials();
+        if (result.migrated) {
+            console.log('Saved API keys are now encrypted');
+        }
+    } catch (error) {
+        console.warn('Credentials migration failed:', error.message);
+    }
 }
 
 // ============ CONFIG ============
@@ -206,13 +260,18 @@ function updateConfig(key, value) {
 // ============ CREDENTIALS ============
 
 function getCredentials() {
-    return readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS);
+    const raw = readJsonFile(getCredentialsPath(), DEFAULT_CREDENTIALS);
+    const { data, unreadable } = secretStore.decryptObject(raw);
+    if (unreadable.length > 0) {
+        console.warn(`Could not decrypt saved credentials (${unreadable.join(', ')}). They need to be entered again.`);
+    }
+    return { ...DEFAULT_CREDENTIALS, ...data };
 }
 
 function setCredentials(credentials) {
     const current = getCredentials();
     const updated = { ...current, ...credentials };
-    return writeJsonFile(getCredentialsPath(), updated);
+    return writeJsonFileAtomic(getCredentialsPath(), secretStore.encryptObject(updated));
 }
 
 function getApiKey() {
@@ -255,6 +314,12 @@ function getPreferences() {
 function normalizePreferenceValue(key, value) {
     if (key === 'customPresets') {
         return sanitizeCustomPresets(value);
+    }
+    if (key === 'speechVocabulary') {
+        return String(value ?? '')
+            .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+            .trim()
+            .slice(0, 400);
     }
     if (key === 'historyRetentionDays') {
         const days = Number(value);
@@ -557,6 +622,8 @@ function clearAllData() {
 module.exports = {
     // Initialization
     initializeStorage,
+    setSecretStore,
+    migrateCredentials,
     getConfigDir,
     getDefaultContextDir,
 

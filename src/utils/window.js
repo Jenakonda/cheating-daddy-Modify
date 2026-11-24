@@ -1,6 +1,7 @@
-const { BrowserWindow, globalShortcut, ipcMain, screen } = require('electron');
+const { BrowserWindow, globalShortcut, ipcMain, screen, shell } = require('electron');
 const path = require('node:path');
 const storage = require('../storage');
+const { isSafeExternalUrl } = require('./external-url');
 
 let mouseEventsIgnored = false;
 
@@ -65,6 +66,24 @@ function createWindow(sendToRenderer, geminiSessionRef) {
             console.warn('Could not hide from Mission Control:', error.message);
         }
     }
+
+    // This window has Node integration, so it must never navigate away from the app or open new windows.
+    // Web links are handed to the default browser instead.
+    const openInBrowser = url => {
+        if (isSafeExternalUrl(url)) {
+            shell.openExternal(url).catch(error => console.warn('Could not open link:', error.message));
+        }
+    };
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        openInBrowser(url);
+        return { action: 'deny' };
+    });
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+        if (!url.startsWith('file://')) {
+            event.preventDefault();
+            openInBrowser(url);
+        }
+    });
 
     mainWindow.loadFile(path.join(__dirname, '../index.html'));
 

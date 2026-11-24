@@ -4,12 +4,13 @@ if (require('electron-squirrel-startup')) {
 
 const fs = require('fs');
 const path = require('path');
-const { app, BrowserWindow, dialog, globalShortcut, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, globalShortcut, shell, ipcMain, safeStorage } = require('electron');
 const { createWindow, updateGlobalShortcuts } = require('./utils/window');
 const { setupGeminiIpcHandlers, stopMacOSAudioCapture, sendToRenderer } = require('./utils/gemini');
 const { loadContextFolder, summarizeContextBundle, copyFilesIntoContextFolder, clearContextCache } = require('./utils/context-folder');
 const storage = require('./storage');
 const { checkForUpdates } = require('./utils/update-check');
+const { isSafeExternalUrl } = require('./utils/external-url');
 const { formatBytes } = require('./utils/data-usage');
 
 const MAX_EXPORT_BYTES = 5 * 1024 * 1024;
@@ -39,6 +40,9 @@ function createMainWindow() {
 
 if (hasSingleInstanceLock) {
     app.whenReady().then(async () => {
+        // API keys are encrypted with the operating system (must be set up before storage is used)
+        storage.setSecretStore(safeStorage);
+
         // Initialize storage (checks version, resets if needed)
         storage.initializeStorage();
 
@@ -348,6 +352,9 @@ function setupGeneralIpcHandlers() {
     });
 
     ipcMain.handle('open-external', async (event, url) => {
+        if (!isSafeExternalUrl(url)) {
+            return { success: false, error: 'Only http and https links can be opened' };
+        }
         try {
             await shell.openExternal(url);
             return { success: true };
