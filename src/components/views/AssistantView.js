@@ -172,12 +172,134 @@ export class AssistantView extends LitElement {
             background: var(--scrollbar-thumb-hover, #4a4a54);
         }
 
+        /* ── Transcript panel ── */
+
+        .transcript-panel {
+            flex-shrink: 0;
+            max-height: 190px;
+            overflow-y: auto;
+            padding: var(--space-sm) var(--space-md);
+            border-top: 1px solid var(--border);
+            background: var(--bg-surface);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .transcript-empty {
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+        }
+
+        .transcript-line {
+            display: flex;
+            align-items: baseline;
+            gap: var(--space-sm);
+            font-size: var(--font-size-sm);
+            line-height: 1.45;
+        }
+
+        .transcript-who {
+            flex-shrink: 0;
+            min-width: 54px;
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            color: var(--text-muted);
+        }
+
+        .transcript-who.you {
+            color: var(--accent);
+        }
+
+        .transcript-text {
+            flex: 1;
+            color: var(--text-primary);
+            user-select: text;
+            cursor: text;
+        }
+
+        .transcript-ask {
+            flex-shrink: 0;
+            padding: 1px 8px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition:
+                color var(--transition),
+                border-color var(--transition);
+        }
+
+        .transcript-ask:hover {
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
+
         /* ── Response navigation strip ── */
+
+        .nav-side {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .nav-side.right {
+            justify-content: flex-end;
+        }
+
+        .nav-center {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            min-width: 120px;
+        }
+
+        .tool-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 2px 10px;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition:
+                color var(--transition),
+                background var(--transition),
+                border-color var(--transition);
+        }
+
+        .tool-btn:hover:not(:disabled) {
+            color: var(--text-primary);
+            background: var(--bg-hover);
+        }
+
+        .tool-btn.active {
+            color: var(--text-primary);
+            border-color: var(--border);
+            background: var(--bg-surface);
+        }
+
+        .tool-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        .tool-count {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+        }
 
         .response-nav {
             display: flex;
             align-items: center;
-            justify-content: center;
+            justify-content: space-between;
             flex-shrink: 0;
             gap: var(--space-sm);
             padding: var(--space-sm) var(--space-md);
@@ -334,6 +456,10 @@ export class AssistantView extends LitElement {
         onSendText: { type: Function },
         shouldAnimateResponse: { type: Boolean },
         isAnalyzing: { type: Boolean, state: true },
+        transcript: { type: Array },
+        _showTranscript: { state: true },
+        _copied: { state: true },
+        _presetNames: { state: true },
     };
 
     constructor() {
@@ -344,6 +470,12 @@ export class AssistantView extends LitElement {
         this.onSendText = () => {};
         this.isAnalyzing = false;
         this._animFrame = null;
+        this.transcript = [];
+        this._showTranscript = false;
+        this._copied = false;
+        this._copiedTimer = null;
+        this._presetNames = null;
+        this._boundPresetsChanged = () => this._loadPresetNames();
         this._scrollTarget = null;
         this._scrollResetTimer = null;
         this._lastScrollTriggerTs = 0;
@@ -489,14 +621,38 @@ export class AssistantView extends LitElement {
     }
 
     getProfileNames() {
-        return {
-            interview: 'Job Interview',
-            sales: 'Sales Call',
-            meeting: 'Business Meeting',
-            presentation: 'Presentation',
-            negotiation: 'Negotiation',
-            exam: 'Exam Assistant',
-        };
+        if (this._presetNames) return this._presetNames;
+        return Object.fromEntries(cheatingDaddy.presets.builtIn.map(preset => [preset.value, preset.label]));
+    }
+
+    async _loadPresetNames() {
+        try {
+            const list = await cheatingDaddy.presets.list();
+            this._presetNames = Object.fromEntries(list.map(preset => [preset.value, preset.label]));
+        } catch (error) {
+            console.warn('Could not load preset names:', error);
+        }
+    }
+
+    _copyCurrentResponse() {
+        if (this.responses.length === 0 || this.currentResponseIndex < 0) return;
+        const text = String(this.responses[this.currentResponseIndex] || '');
+        if (!text.trim() || !cheatingDaddy.copyText(text)) return;
+        this._copied = true;
+        clearTimeout(this._copiedTimer);
+        this._copiedTimer = setTimeout(() => {
+            this._copied = false;
+        }, 1500);
+    }
+
+    _toggleTranscript() {
+        this._showTranscript = !this._showTranscript;
+    }
+
+    _askAboutLine(line) {
+        if (line?.text) {
+            this.onSendText(line.text);
+        }
     }
 
     getCurrentResponse() {
@@ -622,6 +778,8 @@ export class AssistantView extends LitElement {
     connectedCallback() {
         super.connectedCallback();
         this._loadScrollKeybinds();
+        this._loadPresetNames();
+        window.addEventListener('presets-changed', this._boundPresetsChanged);
         window.addEventListener('keydown', this._handleWindowKeydown);
 
         if (window.require) {
@@ -643,6 +801,8 @@ export class AssistantView extends LitElement {
         super.disconnectedCallback();
         this._stopWaveformAnimation();
         this._clearScrollTarget();
+        clearTimeout(this._copiedTimer);
+        window.removeEventListener('presets-changed', this._boundPresetsChanged);
         window.removeEventListener('keydown', this._handleWindowKeydown);
 
         if (window.require) {
@@ -832,6 +992,10 @@ export class AssistantView extends LitElement {
 
     updated(changedProperties) {
         super.updated(changedProperties);
+        if (this._showTranscript && (changedProperties.has('transcript') || changedProperties.has('_showTranscript'))) {
+            const panel = this.shadowRoot.querySelector('#transcriptPanel');
+            if (panel) panel.scrollTop = panel.scrollHeight;
+        }
         if (changedProperties.has('responses') || changedProperties.has('currentResponseIndex')) {
             this.updateResponseContent();
             if (changedProperties.has('currentResponseIndex')) {
@@ -870,49 +1034,86 @@ export class AssistantView extends LitElement {
         }
     }
 
+    _renderTranscriptPanel() {
+        const lines = this.transcript || [];
+        return html`
+            <div class="transcript-panel" id="transcriptPanel">
+                ${
+                    lines.length === 0
+                        ? html`<div class="transcript-empty">Nothing heard yet. Spoken text appears here as it is recognized.</div>`
+                        : lines.map(
+                              line => html`
+                                  <div class="transcript-line">
+                                      <span class="transcript-who ${line.source}">${line.source === 'you' ? 'You' : 'Speaker'}</span>
+                                      <span class="transcript-text">${line.text}</span>
+                                      <button class="transcript-ask" @click=${() => this._askAboutLine(line)} title="Send this line as a question">
+                                          Ask
+                                      </button>
+                                  </div>
+                              `
+                          )
+                }
+            </div>
+        `;
+    }
+
     render() {
         const hasMultipleResponses = this.responses.length > 1;
 
         return html`
             <div class="response-container" id="responseContainer" @wheel=${this._clearScrollTarget} @pointerdown=${this._clearScrollTarget}></div>
 
-            ${
-                hasMultipleResponses
-                    ? html`
-                          <div class="response-nav">
-                              <button
-                                  class="nav-btn"
-                                  @click=${this.navigateToPreviousResponse}
-                                  ?disabled=${this.currentResponseIndex <= 0}
-                                  title="Previous response"
-                              >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                      <path
-                                          fill-rule="evenodd"
-                                          d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
-                                          clip-rule="evenodd"
-                                      />
-                                  </svg>
-                              </button>
-                              <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
-                              <button
-                                  class="nav-btn"
-                                  @click=${this.navigateToNextResponse}
-                                  ?disabled=${this.currentResponseIndex >= this.responses.length - 1}
-                                  title="Next response"
-                              >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                      <path
-                                          fill-rule="evenodd"
-                                          d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
-                                          clip-rule="evenodd"
-                                      />
-                                  </svg>
-                              </button>
-                          </div>
-                      `
-                    : ''
-            }
+            ${this._showTranscript ? this._renderTranscriptPanel() : ''}
+
+            <div class="response-nav">
+                <div class="nav-side">
+                    <button class="tool-btn ${this._showTranscript ? 'active' : ''}" @click=${this._toggleTranscript} title="Show what was heard">
+                        Transcript${this.transcript.length > 0 ? html` <span class="tool-count">${this.transcript.length}</span>` : ''}
+                    </button>
+                </div>
+                <div class="nav-center">
+                    ${
+                        hasMultipleResponses
+                            ? html`
+                                  <button
+                                      class="nav-btn"
+                                      @click=${this.navigateToPreviousResponse}
+                                      ?disabled=${this.currentResponseIndex <= 0}
+                                      title="Previous response"
+                                  >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                          <path
+                                              fill-rule="evenodd"
+                                              d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z"
+                                              clip-rule="evenodd"
+                                          />
+                                      </svg>
+                                  </button>
+                                  <span class="response-counter">${this.currentResponseIndex + 1} of ${this.responses.length}</span>
+                                  <button
+                                      class="nav-btn"
+                                      @click=${this.navigateToNextResponse}
+                                      ?disabled=${this.currentResponseIndex >= this.responses.length - 1}
+                                      title="Next response"
+                                  >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                          <path
+                                              fill-rule="evenodd"
+                                              d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"
+                                              clip-rule="evenodd"
+                                          />
+                                      </svg>
+                                  </button>
+                              `
+                            : ''
+                    }
+                </div>
+                <div class="nav-side right">
+                    <button class="tool-btn" @click=${this._copyCurrentResponse} ?disabled=${this.responses.length === 0} title="Copy this answer">
+                        ${this._copied ? 'Copied' : 'Copy'}
+                    </button>
+                </div>
+            </div>
 
             <div class="input-bar">
                 <div class="input-bar-inner">

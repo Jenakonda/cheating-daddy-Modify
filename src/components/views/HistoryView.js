@@ -100,6 +100,36 @@ export class HistoryView extends LitElement {
                 gap: var(--space-sm);
             }
 
+            .detail-actions {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: var(--space-sm);
+            }
+
+            .detail-notice {
+                color: var(--text-muted);
+                font-size: var(--font-size-xs);
+            }
+
+            .action-btn {
+                padding: 4px 12px;
+                border: 1px solid var(--border);
+                border-radius: var(--radius-md);
+                background: var(--bg-elevated);
+                color: var(--text-secondary);
+                font-size: var(--font-size-xs);
+                cursor: pointer;
+                transition:
+                    color var(--transition),
+                    border-color var(--transition);
+            }
+
+            .action-btn:hover {
+                color: var(--text-primary);
+                border-color: var(--border-strong);
+            }
+
             .back-btn {
                 border: none;
                 background: none;
@@ -264,6 +294,8 @@ export class HistoryView extends LitElement {
         loading: { type: Boolean },
         activeTab: { type: String },
         searchQuery: { type: String },
+        _presetNames: { state: true },
+        _exportNotice: { state: true },
     };
 
     constructor() {
@@ -274,7 +306,63 @@ export class HistoryView extends LitElement {
         this.loading = true;
         this.activeTab = 'conversation';
         this.searchQuery = '';
+        this._presetNames = null;
+        this._exportNotice = '';
+        this._noticeTimer = null;
+        this._boundPresetsChanged = () => this._loadPresetNames();
+        this._loadPresetNames();
         this.loadSessions();
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        window.addEventListener('presets-changed', this._boundPresetsChanged);
+    }
+
+    disconnectedCallback() {
+        super.disconnectedCallback();
+        window.removeEventListener('presets-changed', this._boundPresetsChanged);
+        clearTimeout(this._noticeTimer);
+    }
+
+    async _loadPresetNames() {
+        try {
+            const list = await cheatingDaddy.presets.list();
+            this._presetNames = Object.fromEntries(list.map(preset => [preset.value, preset.label]));
+        } catch (error) {
+            console.warn('Could not load preset names:', error);
+        }
+    }
+
+    _showNotice(text) {
+        this._exportNotice = text;
+        clearTimeout(this._noticeTimer);
+        this._noticeTimer = setTimeout(() => {
+            this._exportNotice = '';
+        }, 2500);
+    }
+
+    _sessionMarkdown() {
+        const session = this.selectedSession;
+        const label = this._getProfileLabel(session);
+        const formatDate = timestamp => `${this.formatDate(timestamp)} ${this.formatTime(timestamp)}`;
+        return { session, label, formatDate };
+    }
+
+    _copySession() {
+        const { session, label, formatDate } = this._sessionMarkdown();
+        const ok = cheatingDaddy.copyText(cheatingDaddy.sessionMarkdown(session, label, formatDate));
+        this._showNotice(ok ? 'Copied as Markdown' : 'Could not copy');
+    }
+
+    async _exportSession() {
+        const { session, label, formatDate } = this._sessionMarkdown();
+        const result = await cheatingDaddy.exportSessionMarkdown(session, label, formatDate);
+        if (result?.success && !result.canceled) {
+            this._showNotice('Exported');
+        } else if (result && !result.success) {
+            this._showNotice(result.error || 'Export failed');
+        }
     }
 
     async loadSessions() {
@@ -330,14 +418,8 @@ export class HistoryView extends LitElement {
     }
 
     getProfileNames() {
-        return {
-            interview: 'Job Interview',
-            sales: 'Sales Call',
-            meeting: 'Business Meeting',
-            presentation: 'Presentation',
-            negotiation: 'Negotiation',
-            exam: 'Exam Assistant',
-        };
+        if (this._presetNames) return this._presetNames;
+        return Object.fromEntries(cheatingDaddy.presets.builtIn.map(preset => [preset.value, preset.label]));
     }
 
     _getProfileLabel(session) {
@@ -512,6 +594,11 @@ export class HistoryView extends LitElement {
                     >${this._getProfileLabel(this.selectedSession)} · ${this.formatDate(this.selectedSession.createdAt)} ·
                     ${this.formatTime(this.selectedSession.createdAt)}</span
                 >
+                <span class="detail-actions">
+                    ${this._exportNotice ? html`<span class="detail-notice">${this._exportNotice}</span>` : ''}
+                    <button class="action-btn" @click=${this._copySession} title="Copy the whole session as Markdown">Copy</button>
+                    <button class="action-btn" @click=${this._exportSession} title="Save the session as a Markdown file">Export .md</button>
+                </span>
             </div>
             <div class="tab-row">
                 <button

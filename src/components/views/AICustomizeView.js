@@ -37,6 +37,59 @@ export class AICustomizeView extends LitElement {
                 overflow-y: auto;
                 min-height: 140px;
             }
+            .preset-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: var(--space-sm);
+                padding: 10px 0;
+                border-top: 1px solid var(--border);
+            }
+            .preset-row:first-of-type {
+                border-top: none;
+            }
+            .preset-name {
+                color: var(--text-primary);
+                font-size: var(--font-size-sm);
+            }
+            .preset-base {
+                color: var(--text-muted);
+                font-size: var(--font-size-xs);
+            }
+            .preset-actions {
+                display: flex;
+                gap: 6px;
+                flex-shrink: 0;
+            }
+            .preset-editor {
+                display: flex;
+                flex-direction: column;
+                gap: var(--space-sm);
+                margin-top: var(--space-sm);
+                padding-top: var(--space-md);
+                border-top: 1px solid var(--border);
+            }
+            .preset-editor .form-group.vertical {
+                gap: 6px;
+                justify-content: flex-start;
+            }
+            .preset-editor textarea.control {
+                flex: none;
+                height: 150px;
+                width: 100%;
+                resize: vertical;
+            }
+            .preset-editor input.control {
+                width: 100%;
+            }
+            .field-error {
+                color: var(--danger);
+                font-size: var(--font-size-xs);
+            }
+            .btn-danger-confirm {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
             .cf-header {
                 display: flex;
                 align-items: center;
@@ -165,6 +218,11 @@ export class AICustomizeView extends LitElement {
         _contextFolderSummary: { state: true },
         _loadingContextFolder: { state: true },
         _contextFolderNotice: { state: true },
+        _customPresets: { state: true },
+        _presetList: { state: true },
+        _editing: { state: true },
+        _confirmDeleteId: { state: true },
+        _presetError: { state: true },
     };
 
     constructor() {
@@ -176,6 +234,11 @@ export class AICustomizeView extends LitElement {
         this._contextFolderSummary = null;
         this._loadingContextFolder = false;
         this._contextFolderNotice = '';
+        this._customPresets = [];
+        this._presetList = cheatingDaddy.presets.builtIn.map(preset => ({ ...preset, custom: false }));
+        this._editing = null;
+        this._confirmDeleteId = null;
+        this._presetError = '';
         this._loadFromStorage();
     }
 
@@ -184,6 +247,7 @@ export class AICustomizeView extends LitElement {
             const prefs = await cheatingDaddy.storage.getPreferences();
             this._context = prefs.customPrompt || '';
             this._contextFolderEnabled = prefs.contextFolderEnabled ?? true;
+            await this._loadPresets();
             this.requestUpdate();
             this._refreshContextFolder(false);
         } catch (error) {
@@ -271,6 +335,170 @@ export class AICustomizeView extends LitElement {
         }
     }
 
+    async _loadPresets() {
+        this._customPresets = await cheatingDaddy.presets.getCustom();
+        this._presetList = await cheatingDaddy.presets.list();
+    }
+
+    _startNewPreset() {
+        const lib = cheatingDaddy.presets.lib;
+        if (this._customPresets.length >= lib.MAX_CUSTOM_PRESETS) {
+            this._presetError = `You can save up to ${lib.MAX_CUSTOM_PRESETS} presets.`;
+            return;
+        }
+        this._presetError = '';
+        this._editing = { id: null, name: '', basePreset: 'interview', instructions: '' };
+    }
+
+    _startEditPreset(preset) {
+        this._presetError = '';
+        this._confirmDeleteId = null;
+        this._editing = { id: preset.id, name: preset.name, basePreset: preset.basePreset, instructions: preset.instructions };
+    }
+
+    _updateEditing(field, value) {
+        this._editing = { ...this._editing, [field]: value };
+        this._presetError = '';
+    }
+
+    async _savePreset() {
+        const draft = this._editing;
+        if (!draft) return;
+        const name = draft.name.trim();
+        if (!name) {
+            this._presetError = 'Enter a name for the preset.';
+            return;
+        }
+        const lib = cheatingDaddy.presets.lib;
+        const duplicate = this._customPresets.some(preset => preset.id !== draft.id && preset.name.toLowerCase() === name.toLowerCase());
+        if (duplicate) {
+            this._presetError = 'A preset with this name already exists.';
+            return;
+        }
+
+        const next = [...this._customPresets];
+        if (draft.id) {
+            const index = next.findIndex(preset => preset.id === draft.id);
+            if (index !== -1) next[index] = { ...next[index], name, basePreset: draft.basePreset, instructions: draft.instructions };
+        } else {
+            const id = lib.createCustomPresetId(
+                name,
+                next.map(preset => preset.id)
+            );
+            next.push({ id, name, basePreset: draft.basePreset, instructions: draft.instructions });
+        }
+
+        await cheatingDaddy.presets.saveCustom(next);
+        await this._loadPresets();
+        this._editing = null;
+    }
+
+    async _deletePreset(id) {
+        if (this._confirmDeleteId !== id) {
+            this._confirmDeleteId = id;
+            return;
+        }
+        await cheatingDaddy.presets.saveCustom(this._customPresets.filter(preset => preset.id !== id));
+        await this._loadPresets();
+        this._confirmDeleteId = null;
+        if (this._editing?.id === id) this._editing = null;
+        if (this.selectedProfile === id) this.onProfileChange('interview');
+    }
+
+    _renderPresetsSection() {
+        const editing = this._editing;
+        const lib = cheatingDaddy.presets.lib;
+        return html`
+            <section class="surface">
+                <div class="cf-header">
+                    <div>
+                        <div class="surface-title">My presets</div>
+                        <div class="form-help">Save your own role and rules. They appear next to the built-in presets everywhere.</div>
+                    </div>
+                    <button type="button" class="cf-btn" @click=${() => this._startNewPreset()}>+ New preset</button>
+                </div>
+
+                ${
+                    this._customPresets.length === 0 && !editing
+                        ? html`<div class="form-help">No custom presets yet.</div>`
+                        : this._customPresets.map(
+                              preset => html`
+                                  <div class="preset-row">
+                                      <div>
+                                          <div class="preset-name">${preset.name}</div>
+                                          <div class="preset-base">Based on ${lib.getPresetLabel(preset.basePreset)}</div>
+                                      </div>
+                                      <div class="preset-actions">
+                                          <button type="button" class="cf-btn" @click=${() => this._startEditPreset(preset)}>Edit</button>
+                                          <button
+                                              type="button"
+                                              class="cf-btn ${this._confirmDeleteId === preset.id ? 'btn-danger-confirm' : ''}"
+                                              @click=${() => this._deletePreset(preset.id)}
+                                          >
+                                              ${this._confirmDeleteId === preset.id ? 'Click again to delete' : 'Delete'}
+                                          </button>
+                                      </div>
+                                  </div>
+                              `
+                          )
+                }
+                ${
+                    editing
+                        ? html`
+                              <div class="preset-editor">
+                                  <div class="form-group vertical" style="flex: none">
+                                      <label class="form-label">Name</label>
+                                      <input
+                                          class="control"
+                                          type="text"
+                                          maxlength=${lib.MAX_NAME_LENGTH}
+                                          placeholder="For example: Database exam"
+                                          .value=${editing.name}
+                                          @input=${e => this._updateEditing('name', e.target.value)}
+                                      />
+                                  </div>
+                                  <div class="form-group vertical" style="flex: none">
+                                      <label class="form-label">Based on</label>
+                                      <select
+                                          class="control"
+                                          style="width: 100%"
+                                          .value=${editing.basePreset}
+                                          @change=${e => this._updateEditing('basePreset', e.target.value)}
+                                      >
+                                          ${lib.BUILT_IN_PRESETS.map(
+                                              preset =>
+                                                  html`<option value=${preset.value} ?selected=${preset.value === editing.basePreset}>
+                                                      ${preset.label}
+                                                  </option>`
+                                          )}
+                                      </select>
+                                  </div>
+                                  <div class="form-group vertical" style="flex: none">
+                                      <label class="form-label">Instructions</label>
+                                      <textarea
+                                          class="control"
+                                          maxlength=${lib.MAX_INSTRUCTIONS_LENGTH}
+                                          placeholder="How should the AI answer? For example: answer in two sentences, use SQL examples, never guess."
+                                          .value=${editing.instructions}
+                                          @input=${e => this._updateEditing('instructions', e.target.value)}
+                                      ></textarea>
+                                      <div class="form-help">${editing.instructions.length} / ${lib.MAX_INSTRUCTIONS_LENGTH}</div>
+                                  </div>
+                                  ${this._presetError ? html`<div class="field-error">${this._presetError}</div>` : ''}
+                                  <div class="preset-actions">
+                                      <button type="button" class="cf-btn" @click=${() => this._savePreset()}>Save preset</button>
+                                      <button type="button" class="cf-btn" @click=${() => (this._editing = null)}>Cancel</button>
+                                  </div>
+                              </div>
+                          `
+                        : this._presetError
+                          ? html`<div class="field-error">${this._presetError}</div>`
+                          : ''
+                }
+            </section>
+        `;
+    }
+
     _handleProfileChange(e) {
         this.onProfileChange(e.target.value);
     }
@@ -278,18 +506,6 @@ export class AICustomizeView extends LitElement {
     async _saveContext(val) {
         this._context = val;
         await cheatingDaddy.storage.updatePreference('customPrompt', val);
-    }
-
-    _getProfileName(profile) {
-        const names = {
-            interview: 'Job Interview',
-            sales: 'Sales Call',
-            meeting: 'Business Meeting',
-            presentation: 'Presentation',
-            negotiation: 'Negotiation',
-            exam: 'Exam Assistant',
-        };
-        return names[profile] || profile;
     }
 
     _formatChars(count) {
@@ -380,14 +596,7 @@ export class AICustomizeView extends LitElement {
     }
 
     render() {
-        const profiles = [
-            { value: 'interview', label: 'Job Interview' },
-            { value: 'sales', label: 'Sales Call' },
-            { value: 'meeting', label: 'Business Meeting' },
-            { value: 'presentation', label: 'Presentation' },
-            { value: 'negotiation', label: 'Negotiation' },
-            { value: 'exam', label: 'Exam Assistant' },
-        ];
+        const profiles = this._presetList;
 
         return html`
             <div class="unified-page">
@@ -396,14 +605,19 @@ export class AICustomizeView extends LitElement {
                         <div class="page-title">AI Context</div>
                     </div>
 
-                    ${this._renderContextFolderSection()}
+                    ${this._renderContextFolderSection()} ${this._renderPresetsSection()}
 
                     <section class="surface instructions-surface">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label class="form-label">Profile</label>
                                 <select class="control" .value=${this.selectedProfile} @change=${this._handleProfileChange}>
-                                    ${profiles.map(profile => html`<option value=${profile.value}>${profile.label}</option>`)}
+                                    ${profiles.map(
+                                        profile =>
+                                            html`<option value=${profile.value} ?selected=${profile.value === this.selectedProfile}>
+                                                ${profile.label}
+                                            </option>`
+                                    )}
                                 </select>
                             </div>
                             <div class="form-group vertical">

@@ -5,6 +5,42 @@ export class CustomizeView extends LitElement {
     static styles = [
         unifiedPageStyles,
         css`
+            .usage-row {
+                display: flex;
+                align-items: center;
+                gap: var(--space-md);
+                padding: 8px 0;
+                border-top: 1px solid var(--border);
+            }
+
+            .usage-text {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .usage-name {
+                color: var(--text-primary);
+                font-size: var(--font-size-sm);
+            }
+
+            .usage-clear {
+                width: 96px;
+                padding: 5px 10px;
+                text-align: center;
+                font-size: var(--font-size-xs);
+                cursor: pointer;
+            }
+
+            .usage-clear.confirm {
+                border-color: var(--danger);
+                color: var(--danger);
+            }
+
+            .usage-clear:disabled {
+                opacity: 0.4;
+                cursor: default;
+            }
+
             .danger-surface {
                 border-color: var(--danger);
             }
@@ -180,6 +216,10 @@ export class CustomizeView extends LitElement {
         isRestoring: { type: Boolean },
         clearStatusMessage: { type: String },
         clearStatusType: { type: String },
+        _usage: { state: true },
+        _retentionDays: { state: true },
+        _confirmClearId: { state: true },
+        _dataNotice: { state: true },
     };
 
     constructor() {
@@ -203,7 +243,12 @@ export class CustomizeView extends LitElement {
         this.audioMode = 'speaker_only';
         this.customPrompt = '';
         this.theme = 'dark';
+        this._usage = [];
+        this._retentionDays = 0;
+        this._confirmClearId = null;
+        this._dataNotice = '';
         this._loadFromStorage();
+        this._loadUsage();
     }
 
     getThemes() {
@@ -219,6 +264,7 @@ export class CustomizeView extends LitElement {
             this.audioMode = prefs.audioMode ?? 'speaker_only';
             this.customPrompt = prefs.customPrompt ?? '';
             this.theme = prefs.theme ?? 'dark';
+            this._retentionDays = Number(prefs.historyRetentionDays) || 0;
             if (keybinds) {
                 this.keybinds = { ...this.getDefaultKeybinds(), ...keybinds };
             }
@@ -542,6 +588,92 @@ export class CustomizeView extends LitElement {
         }
     }
 
+    async _loadUsage() {
+        try {
+            const result = await cheatingDaddy.data.getUsage();
+            if (result?.success) {
+                this._usage = result.data;
+            }
+        } catch (error) {
+            console.warn('Could not read data usage:', error);
+        }
+    }
+
+    async _changeRetention(value) {
+        this._retentionDays = Number(value) || 0;
+        await cheatingDaddy.storage.updatePreference('historyRetentionDays', this._retentionDays);
+        if (this._retentionDays > 0) {
+            const result = await cheatingDaddy.data.pruneHistory();
+            this._dataNotice = result?.removed > 0 ? `Removed ${result.removed} old session(s)` : 'Retention saved';
+        } else {
+            this._dataNotice = 'History will be kept until you delete it';
+        }
+        await this._loadUsage();
+    }
+
+    async _clearCategory(id) {
+        if (this._confirmClearId !== id) {
+            this._confirmClearId = id;
+            this._dataNotice = '';
+            return;
+        }
+        this._confirmClearId = null;
+        const result = await cheatingDaddy.data.clearCategory(id);
+        this._dataNotice = result?.success ? 'Cleared' : result?.error || 'Could not clear this data';
+        await this._loadUsage();
+    }
+
+    renderStorageSection() {
+        const retentionOptions = [
+            { value: 0, label: 'Keep until I delete it' },
+            { value: 7, label: 'Delete after 7 days' },
+            { value: 30, label: 'Delete after 30 days' },
+            { value: 90, label: 'Delete after 90 days' },
+        ];
+        return html`
+            <section class="surface">
+                <div class="surface-title">Data and storage</div>
+                <div class="surface-subtitle">Everything is stored on this computer only. Settings and credentials are never touched here.</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">Keep session history</label>
+                        <select class="control" .value=${String(this._retentionDays)} @change=${e => this._changeRetention(e.target.value)}>
+                            ${retentionOptions.map(
+                                option =>
+                                    html`<option value=${option.value} ?selected=${Number(option.value) === this._retentionDays}>
+                                        ${option.label}
+                                    </option>`
+                            )}
+                        </select>
+                    </div>
+                    ${this._usage.map(
+                        item => html`
+                            <div class="usage-row">
+                                <div class="usage-text">
+                                    <div class="usage-name">${item.label}</div>
+                                    <div class="form-help">${item.description}</div>
+                                </div>
+                                <span class="chip">${item.size}</span>
+                                ${
+                                    item.clearable
+                                        ? html`<button
+                                              class="control usage-clear ${this._confirmClearId === item.id ? 'confirm' : ''}"
+                                              ?disabled=${item.bytes === 0}
+                                              @click=${() => this._clearCategory(item.id)}
+                                          >
+                                              ${this._confirmClearId === item.id ? 'Click again' : 'Clear'}
+                                          </button>`
+                                        : html`<span class="usage-clear"></span>`
+                                }
+                            </div>
+                        `
+                    )}
+                </div>
+                ${this._dataNotice ? html`<div class="form-help" style="margin-top: var(--space-sm)">${this._dataNotice}</div>` : ''}
+            </section>
+        `;
+    }
+
     async clearLocalData() {
         if (this.isClearing) return;
         this.isClearing = true;
@@ -722,7 +854,7 @@ export class CustomizeView extends LitElement {
                 <div class="unified-wrap">
                     <div class="page-title">Settings</div>
                     ${this.renderAudioSection()} ${this.renderLanguageSection()} ${this.renderAppearanceSection()} ${this.renderKeyboardSection()}
-                    ${this.renderPrivacySection()}
+                    ${this.renderStorageSection()} ${this.renderPrivacySection()}
                 </div>
             </div>
         `;

@@ -1409,6 +1409,7 @@ export class MainView extends LitElement {
         onCancelDownload: { type: Function },
         // Internal state
         _mode: { state: true },
+        _presetOptions: { state: true },
         _token: { state: true },
         _geminiKey: { state: true },
         _groqKey: { state: true },
@@ -1514,7 +1515,18 @@ export class MainView extends LitElement {
 
         this.boundKeydownHandler = this._handleKeydown.bind(this);
         this.boundFocusHandler = this._handleWindowFocus.bind(this);
+        this._presetOptions = PROFILE_OPTIONS;
+        this._boundPresetsChanged = () => this._loadPresetOptions();
+        this._loadPresetOptions();
         this._loadFromStorage();
+    }
+
+    async _loadPresetOptions() {
+        try {
+            this._presetOptions = await cheatingDaddy.presets.list();
+        } catch (error) {
+            console.warn('Could not load presets:', error);
+        }
     }
 
     async _loadFromStorage() {
@@ -1598,12 +1610,14 @@ export class MainView extends LitElement {
         super.connectedCallback();
         document.addEventListener('keydown', this.boundKeydownHandler);
         window.addEventListener('focus', this.boundFocusHandler);
+        window.addEventListener('presets-changed', this._boundPresetsChanged);
     }
 
     disconnectedCallback() {
         super.disconnectedCallback();
         document.removeEventListener('keydown', this.boundKeydownHandler);
         window.removeEventListener('focus', this.boundFocusHandler);
+        window.removeEventListener('presets-changed', this._boundPresetsChanged);
     }
 
     async _handleWindowFocus() {
@@ -2378,7 +2392,7 @@ export class MainView extends LitElement {
                               <span class="config-checkbox-text">
                                   <span class="config-summary-title">Silent microphone context (recommended for 1-on-1 calls)</span>
                                   <span class="config-summary-description"
-                                      >Buffers your speech for context without changing the screen; click "Далі" during a session if you get
+                                      >Buffers your speech for context without changing the screen; click "Continue" during a session if you get
                                       stuck</span
                                   >
                               </span>
@@ -2919,7 +2933,7 @@ export class MainView extends LitElement {
                     <div class="form-group">
                         <label class="form-label">Preset</label>
                         <select .value=${activeProfile} @change=${e => this._saveProfile(e.target.value)}>
-                            ${PROFILE_OPTIONS.map(
+                            ${this._presetOptions.map(
                                 option => html`<option value=${option.value} ?selected=${activeProfile === option.value}>${option.label}</option>`
                             )}
                         </select>

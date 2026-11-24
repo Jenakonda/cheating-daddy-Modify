@@ -409,6 +409,26 @@ export class CheatingDaddyApp extends LitElement {
             opacity: 0.7;
         }
 
+        .health-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--text-muted);
+        }
+
+        .health-dot.ok {
+            background: var(--success);
+        }
+
+        .health-dot.warn {
+            background: var(--warning);
+        }
+
+        .health-dot.danger {
+            background: var(--danger);
+        }
+
         .continue-pill {
             display: inline-flex;
             align-items: center;
@@ -491,6 +511,11 @@ export class CheatingDaddyApp extends LitElement {
         shouldAnimateResponse: { type: Boolean },
         _storageLoaded: { state: true },
         _updateAvailable: { state: true },
+        _updateUrl: { state: true },
+        _latestVersion: { state: true },
+        _cliHealth: { state: true },
+        _transcript: { state: true },
+        _presetLabel: { state: true },
         _whisperDownloading: { state: true },
         _localAiDownloadProgress: { state: true },
         _activeCliProvider: { state: true },
@@ -526,6 +551,12 @@ export class CheatingDaddyApp extends LitElement {
         this._cliAvailableProviders = { claude: false, gemini: false };
         this._bufferedCandidateCount = 0;
         this._localVersion = '';
+        this._updateUrl = '';
+        this._latestVersion = '';
+        this._cliHealth = null;
+        this._transcript = [];
+        this._presetLabel = '';
+        this._boundPresetsChanged = () => this._refreshPresetLabel();
 
         this._loadFromStorage();
         this._checkForUpdates();
@@ -536,21 +567,22 @@ export class CheatingDaddyApp extends LitElement {
             this._localVersion = await cheatingDaddy.getVersion();
             this.requestUpdate();
 
-            const res = await fetch('https://raw.githubusercontent.com/sohzm/cheating-daddy/refs/heads/master/package.json');
-            if (!res.ok) return;
-            const remote = await res.json();
-            const remoteVersion = remote.version;
-
-            const toNum = v => v.split('.').map(Number);
-            const [rMaj, rMin, rPatch] = toNum(remoteVersion);
-            const [lMaj, lMin, lPatch] = toNum(this._localVersion);
-
-            if (rMaj > lMaj || (rMaj === lMaj && rMin > lMin) || (rMaj === lMaj && rMin === lMin && rPatch > lPatch)) {
+            const result = await cheatingDaddy.checkForUpdates();
+            if (result?.updateAvailable) {
                 this._updateAvailable = true;
-                this.requestUpdate();
+                this._updateUrl = result.url || '';
+                this._latestVersion = result.latestVersion || '';
             }
         } catch (e) {
             // silently ignore
+        }
+    }
+
+    async _refreshPresetLabel() {
+        try {
+            this._presetLabel = (await cheatingDaddy.presets.label(this.selectedProfile)) || '';
+        } catch (e) {
+            this._presetLabel = '';
         }
     }
 
@@ -559,7 +591,8 @@ export class CheatingDaddyApp extends LitElement {
             const [config, prefs] = await Promise.all([cheatingDaddy.storage.getConfig(), cheatingDaddy.storage.getPreferences()]);
 
             this.currentView = config.onboarded ? 'main' : 'onboarding';
-            this.selectedProfile = prefs.selectedProfile || 'interview';
+            this.selectedProfile = cheatingDaddy.presets.lib.resolvePresetId(prefs.selectedProfile || 'interview', prefs.customPresets);
+            this._refreshPresetLabel();
             this.selectedLanguage = prefs.selectedLanguage || 'auto';
             this.selectedScreenshotInterval = prefs.selectedScreenshotInterval || '5';
             this.selectedImageQuality = prefs.selectedImageQuality || 'medium';
@@ -603,7 +636,23 @@ export class CheatingDaddyApp extends LitElement {
                 this._bufferedCandidateCount = Number(payload?.count) || 0;
                 this.requestUpdate();
             });
+            ipcRenderer.on('cli-health', (_, payload) => {
+                this._cliHealth = payload && typeof payload === 'object' ? payload : null;
+            });
+            ipcRenderer.on('transcript-line', (_, line) => this._addTranscriptLine(line));
         }
+        window.addEventListener('presets-changed', this._boundPresetsChanged);
+    }
+
+    _addTranscriptLine(line) {
+        if (!line || typeof line.text !== 'string' || !line.text.trim()) return;
+        const entry = {
+            id: String(line.id || Date.now()),
+            source: line.source === 'you' ? 'you' : 'speaker',
+            text: line.text.trim(),
+            ts: Number(line.ts) || Date.now(),
+        };
+        this._transcript = [...this._transcript, entry].slice(-200);
     }
 
     disconnectedCallback() {
@@ -620,7 +669,10 @@ export class CheatingDaddyApp extends LitElement {
             ipcRenderer.removeAllListeners('local-ai-download-progress');
             ipcRenderer.removeAllListeners('cli-provider-changed');
             ipcRenderer.removeAllListeners('cli-candidate-context');
+            ipcRenderer.removeAllListeners('cli-health');
+            ipcRenderer.removeAllListeners('transcript-line');
         }
+        window.removeEventListener('presets-changed', this._boundPresetsChanged);
     }
 
     // ── Timer ──
@@ -696,6 +748,8 @@ export class CheatingDaddyApp extends LitElement {
             this._activeCliProvider = null;
             this._cliAvailableProviders = { claude: false, gemini: false };
             this._bufferedCandidateCount = 0;
+            this._cliHealth = null;
+            this._transcript = [];
             this._stopTimer();
             this.currentView = 'main';
         } else {
@@ -779,6 +833,8 @@ export class CheatingDaddyApp extends LitElement {
         this.responses = [];
         this.currentResponseIndex = -1;
         this._bufferedCandidateCount = 0;
+        this._cliHealth = null;
+        this._transcript = [];
         this.startTime = Date.now();
         this.sessionActive = true;
         this.currentView = 'assistant';
@@ -824,6 +880,7 @@ export class CheatingDaddyApp extends LitElement {
 
     async handleProfileChange(profile) {
         this.selectedProfile = profile;
+        this._refreshPresetLabel();
         await cheatingDaddy.storage.updatePreference('selectedProfile', profile);
     }
 
@@ -950,6 +1007,7 @@ export class CheatingDaddyApp extends LitElement {
                         .responses=${this.responses}
                         .currentResponseIndex=${this.currentResponseIndex}
                         .selectedProfile=${this.selectedProfile}
+                        .transcript=${this._transcript}
                         .onSendText=${msg => this.handleSendText(msg)}
                         .shouldAnimateResponse=${this.shouldAnimateResponse}
                         @response-index-changed=${this.handleResponseIndexChanged}
@@ -1065,7 +1123,11 @@ export class CheatingDaddyApp extends LitElement {
                     ${
                         this._updateAvailable
                             ? html`
-                                  <button class="update-btn" @click=${() => this.handleExternalLinkClick('https://cheatingdaddy.com/download')}>
+                                  <button
+                                      class="update-btn"
+                                      title=${this._latestVersion ? `Version ${this._latestVersion} is available` : 'A new version is available'}
+                                      @click=${() => this.handleExternalLinkClick(this._updateUrl || 'https://github.com/Jenakonda/cheating-daddy-Modify/releases/latest')}
+                                  >
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
                                           <path
                                               fill="none"
@@ -1086,6 +1148,25 @@ export class CheatingDaddyApp extends LitElement {
         `;
     }
 
+    _providerTone() {
+        const entry = this._cliHealth?.[this._activeCliProvider];
+        return cheatingDaddy.describeCliHealth(entry).tone;
+    }
+
+    _healthTooltip() {
+        const names = { claude: 'Claude', gemini: 'Gemini' };
+        const lines = ['claude', 'gemini']
+            .filter(provider => this._cliAvailableProviders?.[provider])
+            .map(
+                provider =>
+                    `${names[provider]}${provider === this._activeCliProvider ? ' (active)' : ''}: ${cheatingDaddy.describeCliHealth(this._cliHealth?.[provider]).label}`
+            );
+        if (this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini) {
+            lines.push('Click to switch provider');
+        }
+        return lines.join('\n');
+    }
+
     renderLiveBar() {
         if (!this._isLiveMode()) return '';
 
@@ -1097,6 +1178,9 @@ export class CheatingDaddyApp extends LitElement {
             negotiation: 'Negotiation',
             exam: 'Exam',
         };
+
+        const providerTone = this._providerTone();
+        const healthTitle = this._healthTooltip();
 
         return html`
             <div class="live-bar">
@@ -1111,7 +1195,7 @@ export class CheatingDaddyApp extends LitElement {
                         </svg>
                     </button>
                 </div>
-                <div class="live-bar-center">${profileLabels[this.selectedProfile] || 'Session'}</div>
+                <div class="live-bar-center">${profileLabels[this.selectedProfile] || this._presetLabel || 'Session'}</div>
                 <div class="live-bar-right">
                     ${
                         this._activeCliProvider
@@ -1119,20 +1203,17 @@ export class CheatingDaddyApp extends LitElement {
                                   <button
                                       class="continue-pill"
                                       @click=${() => this.handleSuggestContinuation()}
-                                      title="Підказати продовження вашої відповіді"
+                                      title="Suggest how to continue your answer"
                                   >
-                                      ${this._bufferedCandidateCount > 0 ? `Далі (${this._bufferedCandidateCount})` : 'Далі'}
+                                      ${this._bufferedCandidateCount > 0 ? `Continue (${this._bufferedCandidateCount})` : 'Continue'}
                                   </button>
                                   <button
                                       class="provider-pill"
                                       @click=${() => this.handleSwitchCliProvider()}
                                       ?disabled=${!(this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini)}
-                                      title=${
-                                          this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini
-                                              ? 'Switch CLI provider'
-                                              : 'Active CLI provider'
-                                      }
+                                      title=${healthTitle}
                                   >
+                                      <span class="health-dot ${providerTone}"></span>
                                       ${this._activeCliProvider === 'gemini' ? 'Gemini' : 'Claude'}${
                                           this._cliAvailableProviders?.claude && this._cliAvailableProviders?.gemini ? ' ⇄' : ''
                                       }
