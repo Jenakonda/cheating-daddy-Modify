@@ -1,23 +1,25 @@
-## Cheating Daddy 0.10.0 — your presets, a live transcript and control over your data
+## Cheating Daddy 0.11.0 — safer, and better at understanding what was said
 
 ### What's new
 
-- **Custom presets.** Create your own presets in **AI Context → My presets**: a name, a built-in preset to start from, and your own instructions. They show up next to the built-in ones on Home, in the session bar and in History.
-- **Live transcript.** A new **Transcript** panel in the session shows what was heard, split into _You_ and _Speaker_. Press **Ask** next to any line to send it to the AI as a question. Works in CLI and Local AI modes.
-- **Subscription status.** A colored dot on the provider pill shows whether Claude or Gemini is working, rate-limited or needs sign-in. Hover it for details such as _Rate limit reached 2 min ago_.
-- **Copy and export.** **Copy** the current answer in one click. In History, **Copy** or **Export .md** a whole session as Markdown. Your custom prompt (for example a CV) is never exported.
-- **Data and storage.** **Settings → Data and storage** shows how much space history, models, speech engines and logs use, lets you clear each of them, and can delete old history automatically after 7, 30 or 90 days.
-- **Continue.** The last Ukrainian label in the session bar (_Далі_) is now **Continue**.
+- **Better speech recognition.** On Home, the _Voice Transcription_ section now suggests the **Large v3 Turbo** model when you use a small one with non-English speech, and has an optional **Vocabulary hints** field: list names and terms you expect, and Whisper will spell them correctly more often.
+- **Fix a misheard word before asking.** Every transcript line now has **Edit** (puts it in the message box so you can correct it) and **Ask** (sends it as is). Double-click a line to edit it.
+- **Smarter handling of garbled speech.** When a phrase makes no sense, the AI now works out which similar-sounding words were meant, answers that question, and ends with one short line stating the question it assumed, so you can spot a wrong guess immediately. Clear questions are unchanged.
+- **Encrypted API keys.** Saved keys are now encrypted with your operating system (Windows DPAPI, macOS Keychain, Linux keyring) instead of being stored as plain text. Existing keys are encrypted automatically on first launch, after a check that they can be read back. If the encrypted keys ever cannot be read (for example on another Windows account), the app asks for them again.
+- **Help links** now lead to this project's releases, issue tracker and source instead of the original project's website and Discord.
 
-### Fixes
+### Security
 
-- **Update check.** The _Update available_ button now checks the releases of this fork instead of the original project, so it no longer reports updates that are not for you.
-- **Shutdown on Node 22.** Fixed a hang while closing CLI sessions that also made the test suite fail on newer Node versions.
+- Answers from the AI are cleaned (DOMPurify) before they are shown, so a malicious answer or screen text can no longer run code in the app.
+- Stricter content security policy: inline scripts are blocked.
+- The window can no longer navigate away from the app or open pop-ups; links open in your browser, and only `http` and `https` links are accepted.
+- Removed the unused **cloud mode**. It was a client for the original author's paid service, was already hidden in the interface, and logged its access token to the console.
 
 ### Under the hood
 
-- New tested modules for presets, update checks, subscription health, data usage and Markdown export; 56 automated tests pass on Node 22 and 24.
-- Presets and retention are validated before they are saved.
+- `renderer.js` and the Home view were split into focused modules; the screens look exactly as before.
+- 76 automated tests plus 6 end-to-end UI checks that start the real app in an isolated profile. CI now runs on every push and pull request.
+- Files use LF line endings (`.gitattributes`), and `AGENTS.md` describes the real project (Lit, plain JavaScript) instead of a planned migration.
 
 ### Install
 
