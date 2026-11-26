@@ -1,25 +1,25 @@
-## Cheating Daddy 0.11.0 — safer, and better at understanding what was said
+## Cheating Daddy 0.12.0 — Mixed mode, backup keys and a working Gemini API
 
-### What's new
+### Fixed
 
-- **Better speech recognition.** On Home, the _Voice Transcription_ section now suggests the **Large v3 Turbo** model when you use a small one with non-English speech, and has an optional **Vocabulary hints** field: list names and terms you expect, and Whisper will spell them correctly more often.
-- **Fix a misheard word before asking.** Every transcript line now has **Edit** (puts it in the message box so you can correct it) and **Ask** (sends it as is). Double-click a line to edit it.
-- **Smarter handling of garbled speech.** When a phrase makes no sense, the AI now works out which similar-sounding words were meant, answers that question, and ends with one short line stating the question it assumed, so you can spot a wrong guess immediately. Clear questions are unchanged.
-- **Encrypted API keys.** Saved keys are now encrypted with your operating system (Windows DPAPI, macOS Keychain, Linux keyring) instead of being stored as plain text. Existing keys are encrypted automatically on first launch, after a check that they can be read back. If the encrypted keys ever cannot be read (for example on another Windows account), the app asks for them again.
-- **Help links** now lead to this project's releases, issue tracker and source instead of the original project's website and Discord.
+- **Gemini "404 model no longer available".** Screen analysis used a hardcoded model that Google no longer offers to new users. You now **choose the models yourself**: pick one from the list, type any model ID, or press **Load models available to my key**. Defaults are `gemini-3.8-flash` and `gemini-3.8-live`.
+- **"503 high demand" on screen analysis.** A busy model is asked once more, then a backup model answers, and the answer says which one did.
+- **Long voice sessions stay connected.** Reconnect attempts no longer add up over a session, and the conversation is resumed on the new connection instead of being retold.
+- **Screen analysis over the API** now follows your preset, custom instructions, response language and context folder.
+- Errors from Google are shown as a readable sentence, and a failed start keeps you on Home with the reason.
+- The Google Search switch now applies in API mode (it was ignored; search is off unless you turn it on).
+- Words no longer go missing from Groq answers, and answers are saved to History on newer Live models.
 
-### Security
+### New
 
-- Answers from the AI are cleaned (DOMPurify) before they are shown, so a malicious answer or screen text can no longer run code in the app.
-- Stricter content security policy: inline scripts are blocked.
-- The window can no longer navigate away from the app or open pop-ups; links open in your browser, and only `http` and `https` links are accepted.
-- Removed the unused **cloud mode**. It was a client for the original author's paid service, was already hidden in the interface, and logged its access token to the console.
+- **Mode tabs** on Home: **CLI**, **API** (formerly BYOK), **Local** and **Mixed**.
+- **Mixed mode.** Decide separately who handles voice questions, screen analysis and typed questions, for example voice over fast Gemini Live and screen analysis through your CLI subscription. The CLI also receives what the API answered.
+- **Backup API keys.** Add as many Gemini and Groq keys as you like; when one hits its limit or is rejected, the next takes over. They are encrypted like the main keys. Note that Google counts Gemini limits per project, so use keys from different projects.
 
-### Under the hood
+### Good to know
 
-- `renderer.js` and the Home view were split into focused modules; the screens look exactly as before.
-- 76 automated tests plus 6 end-to-end UI checks that start the real app in an isolated profile. CI now runs on every push and pull request.
-- Files use LF line endings (`.gitattributes`), and `AGENTS.md` describes the real project (Lit, plain JavaScript) instead of a planned migration.
+- Gemini Live sees the whole context folder only while it fits in 24,000 characters (**Full** on Home). For larger folders it gets the list of files; searching them per question works in CLI mode.
+- Gemini Live does not see screen analysis answers or, in Mixed mode, what the CLI answered.
 
 ### Install
 
