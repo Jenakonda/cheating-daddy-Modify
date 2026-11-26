@@ -202,3 +202,62 @@ test('rate limits skip to a backup, other errors and half-shown answers are not 
     assert.equal(partial.requested.length, 1);
     assert.equal(partial.result.status, 'rejected');
 });
+
+test('opening a Live connection fails instead of hanging, and a late connection is closed', async () => {
+    const never = () => new Promise(() => {});
+    const calls = [];
+    const callbacks = { onopen: () => calls.push('open'), onerror: () => calls.push('error'), onclose: () => calls.push('close') };
+
+    await assert.rejects(
+        gemini.openLiveSession(cbs => {
+            cbs.onerror({ message: 'getaddrinfo ENOTFOUND host' });
+            cbs.onclose({ reason: '' });
+            return never();
+        }, callbacks),
+        /Could not connect to Gemini: getaddrinfo ENOTFOUND/
+    );
+    await assert.rejects(
+        gemini.openLiveSession(cbs => {
+            cbs.onclose({ reason: 'API key not valid' });
+            return never();
+        }, callbacks),
+        /API key not valid/
+    );
+    assert.deepEqual(calls, [], 'a connection that never opened is not reported to the app');
+
+    let finish;
+    let closed = false;
+    let late;
+    await assert.rejects(
+        gemini.openLiveSession(
+            cbs => {
+                late = cbs;
+                return new Promise(resolve => (finish = resolve));
+            },
+            callbacks,
+            20
+        ),
+        /no answer in time/
+    );
+    late.onopen();
+    finish({ close: () => (closed = true) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.ok(closed);
+    assert.deepEqual(calls, []);
+
+    // A connection that opened reports its own errors and closing
+    const session = await gemini.openLiveSession(async cbs => {
+        cbs.onopen();
+        setImmediate(() => {
+            cbs.onerror({ message: 'x' });
+            cbs.onclose({ reason: '' });
+        });
+        return 'session';
+    }, callbacks);
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(session, 'session');
+    assert.deepEqual(calls, ['open', 'error', 'close']);
+
+    assert.match(gemini.describeGeminiError(new Error('Could not connect to Gemini: no answer in time'), 'm'), /internet connection/);
+});

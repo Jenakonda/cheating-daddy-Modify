@@ -16,6 +16,8 @@ const httpRequests = [];
 const httpConfigs = [];
 const cliCalls = [];
 const exhaustedKeys = new Set();
+// When set, connecting behaves like the real SDK without a network: error, close, and a promise that never settles
+let offline = false;
 
 const cli = Object.fromEntries(
     ['processCliAudio', 'sendCliImage', 'sendCliText', 'addExternalTurn', 'closeCliSession'].map(name => [
@@ -46,9 +48,15 @@ Module._load = function (request, ...rest) {
                 constructor({ apiKey }) {
                     this.live = {
                         connect: async ({ callbacks, config }) => {
+                            if (offline) {
+                                callbacks.onerror({ message: 'getaddrinfo ENOTFOUND generativelanguage.googleapis.com' });
+                                callbacks.onclose({ reason: '' });
+                                return new Promise(() => {});
+                            }
                             const session = { apiKey, callbacks, config, inputs: [], sendRealtimeInput: async input => session.inputs.push(input) };
                             session.close = async () => callbacks.onclose({ reason: '' });
                             connections.push(session);
+                            callbacks.onopen();
                             return session;
                         },
                     };
@@ -269,6 +277,41 @@ test('screen analysis over the API follows the preset, the custom instructions a
     await invoke('close-session');
     fs.rmSync(notes);
     storage.updatePreference('googleSearchEnabled', false);
+});
+
+test('a start without network fails with a reason and the next start works', async () => {
+    reset();
+    storage.updatePreference('mixedRoutes', { voice: 'byok', screen: 'cli', text: 'cli' });
+    offline = true;
+    const failed = await invoke('initialize-mixed', {});
+    assert.equal(failed.success, false);
+    assert.match(failed.error, /Check your internet connection/);
+    assert.equal(called('closeCliSession').length, 1, 'the CLI part is closed again');
+
+    offline = false;
+    assert.deepEqual(await invoke('initialize-mixed', {}), { success: true });
+    await invoke('close-session');
+});
+
+test('a network drop during a session ends with a message and does not block later sessions', async () => {
+    reset();
+    connections.length = 0;
+    assert.equal((await invoke('initialize-gemini', '', 'interview', 'en-US')).success, true);
+
+    offline = true;
+    connections[0].callbacks.onclose({ reason: '' });
+    const deadline = Date.now() + 15000;
+    while (!sent.some(args => args[0] === 'reconnect-failed') && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    assert.ok(
+        sent.some(args => args[0] === 'reconnect-failed'),
+        'the user was not told'
+    );
+
+    offline = false;
+    assert.equal((await invoke('initialize-gemini', '', 'interview', 'en-US')).success, true);
+    await invoke('close-session');
 });
 
 test('a mixed session that needs a key refuses to start without one', async () => {

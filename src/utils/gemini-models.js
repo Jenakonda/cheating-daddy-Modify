@@ -10,6 +10,10 @@ const PREVIOUS_GEMINI_LIVE_MODEL = 'gemini-3.1-flash-live-preview';
 const BACKUP_GEMINI_MODELS = [DEFAULT_GEMINI_MODEL, 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const BUSY_RETRY_DELAY_MS = 1500;
 
+const LIVE_OPEN_TIMEOUT_MS = 15000;
+const NETWORK_ERROR_PATTERN =
+    /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|fetch failed|could not connect to Gemini/i;
+
 const MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const MODEL_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,99}$/i;
 
@@ -47,6 +51,52 @@ function buildLiveSessionOptions(model, { systemPrompt, tools = [], resumption =
     return { apiVersion: isGemini25 ? 'v1alpha' : 'v1beta', config };
 }
 
+/**
+ * Opens a Live connection and fails when it cannot be opened. The Google SDK's connect() never settles
+ * if the socket errors or closes before it opens (no network, for example), so this watches for that.
+ * The app's onerror and onclose are only called for a connection that did open.
+ *
+ * connect(callbacks) resolves to the SDK session.
+ */
+function openLiveSession(connect, callbacks, timeoutMs = LIVE_OPEN_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+        let opened = false;
+        let abandoned = false;
+        let timer = null;
+        const abandon = reason => {
+            if (abandoned) return;
+            abandoned = true;
+            clearTimeout(timer);
+            reject(new Error(`Could not connect to Gemini: ${reason}`));
+        };
+        const forward = (name, event) => {
+            if (!abandoned) callbacks[name]?.(event);
+        };
+        timer = setTimeout(() => abandon('no answer in time'), timeoutMs);
+
+        connect({
+            onopen: event => {
+                opened = true;
+                forward('onopen', event);
+            },
+            onmessage: message => forward('onmessage', message),
+            onerror: event => (opened ? forward('onerror', event) : abandon(event?.message || 'connection error')),
+            onclose: event => (opened ? forward('onclose', event) : abandon(event?.reason || 'the connection was closed')),
+        }).then(
+            session => {
+                // A connection that arrives after we gave up must not stay open
+                if (abandoned) {
+                    session.close();
+                    return;
+                }
+                clearTimeout(timer);
+                resolve(session);
+            },
+            error => abandon(error?.message || 'connection error')
+        );
+    });
+}
+
 /** True when retrying cannot help: unknown or retired model, bad key, rejected request. */
 function isPermanentGeminiError(message) {
     return /not[ _]found|no longer available|not supported|api[ _]key not valid|api_key_invalid|permission[ _]denied|invalid[ _]argument|unauthenticated/i.test(
@@ -82,6 +132,9 @@ function describeGeminiError(error, model) {
     }
     if (code === 429) {
         return `Gemini rate limit reached for "${model}". Wait a moment or choose another model on Home.`;
+    }
+    if (NETWORK_ERROR_PATTERN.test(raw)) {
+        return 'Cannot reach Google. Check your internet connection and try again.';
     }
     if (isBusyGeminiError(error)) {
         return `The model "${model}" is overloaded on Google's side. Try again in a moment or choose another model on Home.`;
@@ -182,6 +235,7 @@ module.exports = {
     PREVIOUS_GEMINI_LIVE_MODEL,
     sanitizeModelId,
     buildLiveSessionOptions,
+    openLiveSession,
     isPermanentGeminiError,
     getErrorCode,
     isBusyGeminiError,

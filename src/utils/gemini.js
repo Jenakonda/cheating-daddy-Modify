@@ -15,6 +15,7 @@ const {
     DEFAULT_GEMINI_LIVE_MODEL,
     sanitizeModelId,
     buildLiveSessionOptions,
+    openLiveSession,
     isPermanentGeminiError,
     describeGeminiError,
     listGeminiModels,
@@ -579,6 +580,7 @@ async function buildApiSystemPrompts(profile, customPrompt) {
 async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'interview', language = 'en-US', isReconnect = false) {
     if (isInitializingSession) {
         console.log('Session initialization already in progress');
+        lastInitError = 'A Gemini connection is still starting. Try again in a moment.';
         return false;
     }
 
@@ -595,14 +597,6 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     }
 
     const liveModel = sanitizeModelId(getConfig().geminiLiveModel, DEFAULT_GEMINI_LIVE_MODEL);
-    const enabledTools = getEnabledTools();
-    const prompts = await buildApiSystemPrompts(profile, customPrompt);
-    currentSystemPrompt = prompts.request;
-
-    // Initialize new conversation session only on first connect
-    if (!isReconnect) {
-        initializeNewSession(profile, customPrompt);
-    }
 
     // State of this one connection
     const usedHandle = sessionParams?.resumeHandle || '';
@@ -610,6 +604,15 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
     let setupDone = false;
 
     try {
+        const enabledTools = getEnabledTools();
+        const prompts = await buildApiSystemPrompts(profile, customPrompt);
+        currentSystemPrompt = prompts.request;
+
+        // Initialize new conversation session only on first connect
+        if (!isReconnect) {
+            initializeNewSession(profile, customPrompt);
+        }
+
         const liveOptions = buildLiveSessionOptions(liveModel, {
             systemPrompt: prompts.live,
             tools: enabledTools,
@@ -621,149 +624,149 @@ async function initializeGeminiSession(apiKey, customPrompt = '', profile = 'int
             apiKey: apiKey,
             httpOptions: { apiVersion: liveOptions.apiVersion },
         });
-        const session = await client.live.connect({
-            model: liveModel,
-            callbacks: {
-                onopen: function () {
-                    openedAt = Date.now();
-                    logTransportEvent('gemini.live.opened', {});
-                    sendToRenderer('update-status', 'Live session connected');
-                },
-                onmessage: function (message) {
-                    console.log('----------------', message);
-                    logTransportEvent('gemini.live.message', message);
-
-                    if (message.setupComplete) {
-                        setupDone = true;
-                    }
-                    const update = message.sessionResumptionUpdate;
-                    if (update?.resumable && update.newHandle && sessionParams) {
-                        sessionParams.resumeHandle = update.newHandle;
-                    }
-
-                    // The key works: remember it, and allow every backup again should it fail later
-                    if (message.serverContent && sessionParams) {
-                        keyRing.markWorking('gemini', apiKey);
-                        sessionParams.triedKeys.clear();
-                    }
-
-                    // Handle input transcription (what was spoken)
-                    if (message.serverContent?.inputTranscription?.results) {
-                        currentTranscription += formatSpeakerResults(message.serverContent.inputTranscription.results);
-                    } else if (message.serverContent?.inputTranscription?.text) {
-                        const text = message.serverContent.inputTranscription.text;
-                        if (text.trim() !== '') {
-                            currentTranscription += text;
-                        }
-                    }
-
-                    if (message.serverContent?.inputTranscription) {
-                        sendFinalTranscriptionToGroq();
-                    }
-
-                    if (!hasGroqKey() && message.serverContent?.outputTranscription?.text) {
-                        const isFirstChunk = messageBuffer === '';
-                        if (isFirstChunk) liveStream = nextStreamId('live');
-                        messageBuffer += message.serverContent.outputTranscription.text;
-                        sendToRenderer(isFirstChunk ? 'new-response' : 'update-response', messageBuffer, liveStream);
-                    }
-
-                    // Not every model sends generationComplete, so turnComplete saves the turn too
-                    if (message.serverContent?.generationComplete || message.serverContent?.turnComplete) {
-                        if (currentTranscription.trim() !== '') {
-                            if (!hasGroqKey() && messageBuffer.trim() !== '') {
-                                saveConversationTurn(currentTranscription, messageBuffer);
-                                shareWithCli(currentTranscription.trim(), messageBuffer.trim());
-                            }
-                            currentTranscription = '';
-                        }
-                        messageBuffer = '';
-                    }
-
-                    if (message.serverContent?.turnComplete) {
-                        currentTranscription = '';
-                        messageBuffer = '';
-                        groqRequestStartedForTurn = false;
-                        sendToRenderer('update-status', 'Listening...');
-                    }
-                },
-                onerror: function (e) {
-                    console.log('Session error:', e.message);
-                    logTransportEvent('gemini.live.error', {
-                        error: e.message,
-                    });
-                    sendToRenderer('update-status', 'Error: ' + e.message);
-                },
-                onclose: function (e) {
-                    console.log('Session closed:', e.reason);
-                    logTransportEvent('gemini.live.closed', {
-                        reason: e.reason,
-                    });
-
-                    // Don't reconnect if user intentionally closed
-                    if (isUserClosing) {
-                        isUserClosing = false;
-                        closeTransportLog();
-                        sendToRenderer('update-status', 'Session closed');
-                        return;
-                    }
-
-                    if (openedAt && Date.now() - openedAt >= STABLE_CONNECTION_MS) {
-                        reconnectAttempts = 0;
-                    }
-
-                    // A rate-limited or rejected key: carry on with the next backup key
-                    if (sessionParams && isKeyError(e.reason) && getProviderKeys('gemini').length > 1) {
-                        sessionParams.triedKeys.add(apiKey);
-                        const keys = getProviderKeys('gemini');
-                        const next = keyRing.order('gemini', keys).find(key => !sessionParams.triedKeys.has(key));
-                        if (next) {
-                            sessionParams.apiKey = next;
-                            // A handle belongs to the project of the key that received it
-                            sessionParams.resumeHandle = '';
-                            reconnectAttempts = 0;
-                            sendToRenderer('update-status', `Switching to Gemini key ${keys.indexOf(next) + 1}...`);
-                            attemptReconnect();
-                            return;
-                        }
-                        sessionParams = null;
-                        closeTransportLog();
-                        sendToRenderer('new-response', `None of your Gemini keys worked. ${describeGeminiError(e.reason, liveModel)}`);
-                        sendToRenderer('update-status', 'Session closed');
-                        return;
-                    }
-
-                    // Google refused to resume (expired handle, or a model without resumption):
-                    // start a fresh connection, which gets the conversation as text instead
-                    const refusedResumption = !setupDone && (usedHandle || /resumption/i.test(e.reason || ''));
-                    if (sessionParams && refusedResumption && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                        sessionParams.resumeHandle = '';
-                        if (/resumption/i.test(e.reason || '')) sessionParams.resumption = false;
-                        attemptReconnect();
-                        return;
-                    }
-
-                    // A retired model or a bad key fails the same way every time: say why and stop
-                    if (isPermanentGeminiError(e.reason)) {
-                        sessionParams = null;
-                        closeTransportLog();
-                        sendToRenderer('new-response', describeGeminiError(e.reason, liveModel));
-                        sendToRenderer('update-status', 'Session closed');
-                        return;
-                    }
-
-                    // Attempt reconnection
-                    if (sessionParams && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-                        attemptReconnect();
-                    } else {
-                        if (sessionParams) giveUpReconnecting();
-                        closeTransportLog();
-                        sendToRenderer('update-status', 'Session closed');
-                    }
-                },
+        const appCallbacks = {
+            onopen: function () {
+                openedAt = Date.now();
+                logTransportEvent('gemini.live.opened', {});
+                sendToRenderer('update-status', 'Live session connected');
             },
-            config: liveOptions.config,
-        });
+            onmessage: function (message) {
+                console.log('----------------', message);
+                logTransportEvent('gemini.live.message', message);
+
+                if (message.setupComplete) {
+                    setupDone = true;
+                }
+                const update = message.sessionResumptionUpdate;
+                if (update?.resumable && update.newHandle && sessionParams) {
+                    sessionParams.resumeHandle = update.newHandle;
+                }
+
+                // The key works: remember it, and allow every backup again should it fail later
+                if (message.serverContent && sessionParams) {
+                    keyRing.markWorking('gemini', apiKey);
+                    sessionParams.triedKeys.clear();
+                }
+
+                // Handle input transcription (what was spoken)
+                if (message.serverContent?.inputTranscription?.results) {
+                    currentTranscription += formatSpeakerResults(message.serverContent.inputTranscription.results);
+                } else if (message.serverContent?.inputTranscription?.text) {
+                    const text = message.serverContent.inputTranscription.text;
+                    if (text.trim() !== '') {
+                        currentTranscription += text;
+                    }
+                }
+
+                if (message.serverContent?.inputTranscription) {
+                    sendFinalTranscriptionToGroq();
+                }
+
+                if (!hasGroqKey() && message.serverContent?.outputTranscription?.text) {
+                    const isFirstChunk = messageBuffer === '';
+                    if (isFirstChunk) liveStream = nextStreamId('live');
+                    messageBuffer += message.serverContent.outputTranscription.text;
+                    sendToRenderer(isFirstChunk ? 'new-response' : 'update-response', messageBuffer, liveStream);
+                }
+
+                // Not every model sends generationComplete, so turnComplete saves the turn too
+                if (message.serverContent?.generationComplete || message.serverContent?.turnComplete) {
+                    if (currentTranscription.trim() !== '') {
+                        if (!hasGroqKey() && messageBuffer.trim() !== '') {
+                            saveConversationTurn(currentTranscription, messageBuffer);
+                            shareWithCli(currentTranscription.trim(), messageBuffer.trim());
+                        }
+                        currentTranscription = '';
+                    }
+                    messageBuffer = '';
+                }
+
+                if (message.serverContent?.turnComplete) {
+                    currentTranscription = '';
+                    messageBuffer = '';
+                    groqRequestStartedForTurn = false;
+                    sendToRenderer('update-status', 'Listening...');
+                }
+            },
+            onerror: function (e) {
+                console.log('Session error:', e.message);
+                logTransportEvent('gemini.live.error', {
+                    error: e.message,
+                });
+                sendToRenderer('update-status', 'Error: ' + e.message);
+            },
+            onclose: function (e) {
+                console.log('Session closed:', e.reason);
+                logTransportEvent('gemini.live.closed', {
+                    reason: e.reason,
+                });
+
+                // Don't reconnect if user intentionally closed
+                if (isUserClosing) {
+                    isUserClosing = false;
+                    closeTransportLog();
+                    sendToRenderer('update-status', 'Session closed');
+                    return;
+                }
+
+                if (openedAt && Date.now() - openedAt >= STABLE_CONNECTION_MS) {
+                    reconnectAttempts = 0;
+                }
+
+                // A rate-limited or rejected key: carry on with the next backup key
+                if (sessionParams && isKeyError(e.reason) && getProviderKeys('gemini').length > 1) {
+                    sessionParams.triedKeys.add(apiKey);
+                    const keys = getProviderKeys('gemini');
+                    const next = keyRing.order('gemini', keys).find(key => !sessionParams.triedKeys.has(key));
+                    if (next) {
+                        sessionParams.apiKey = next;
+                        // A handle belongs to the project of the key that received it
+                        sessionParams.resumeHandle = '';
+                        reconnectAttempts = 0;
+                        sendToRenderer('update-status', `Switching to Gemini key ${keys.indexOf(next) + 1}...`);
+                        attemptReconnect();
+                        return;
+                    }
+                    sessionParams = null;
+                    closeTransportLog();
+                    sendToRenderer('new-response', `None of your Gemini keys worked. ${describeGeminiError(e.reason, liveModel)}`);
+                    sendToRenderer('update-status', 'Session closed');
+                    return;
+                }
+
+                // Google refused to resume (expired handle, or a model without resumption):
+                // start a fresh connection, which gets the conversation as text instead
+                const refusedResumption = !setupDone && (usedHandle || /resumption/i.test(e.reason || ''));
+                if (sessionParams && refusedResumption && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    sessionParams.resumeHandle = '';
+                    if (/resumption/i.test(e.reason || '')) sessionParams.resumption = false;
+                    attemptReconnect();
+                    return;
+                }
+
+                // A retired model or a bad key fails the same way every time: say why and stop
+                if (isPermanentGeminiError(e.reason)) {
+                    sessionParams = null;
+                    closeTransportLog();
+                    sendToRenderer('new-response', describeGeminiError(e.reason, liveModel));
+                    sendToRenderer('update-status', 'Session closed');
+                    return;
+                }
+
+                // Attempt reconnection
+                if (sessionParams && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    attemptReconnect();
+                } else {
+                    if (sessionParams) giveUpReconnecting();
+                    closeTransportLog();
+                    sendToRenderer('update-status', 'Session closed');
+                }
+            },
+        };
+        const session = await openLiveSession(
+            callbacks => client.live.connect({ model: liveModel, callbacks, config: liveOptions.config }),
+            appCallbacks
+        );
 
         isInitializingSession = false;
         if (!isReconnect) {
