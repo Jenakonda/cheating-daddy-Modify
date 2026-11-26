@@ -7,7 +7,7 @@
 **CLI & Offline Whisper Edition**
 
 A transparent real-time desktop assistant that listens, watches your screen, and answers
-using your own **Claude Pro** or **Google AI Pro** subscription — or fully offline.
+using your own **Claude Pro** or **Google AI Pro** subscription, your own **API keys**, a mix of both — or fully offline.
 
 [![Release](https://img.shields.io/github/v/release/Jenakonda/cheating-daddy-Modify?style=flat-square&color=8b9cff)](https://github.com/Jenakonda/cheating-daddy-Modify/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-8b9cff?style=flat-square)](LICENSE)
@@ -35,6 +35,9 @@ using your own **Claude Pro** or **Google AI Pro** subscription — or fully off
 | 🖥️ **Transparent overlay**  | Always-on-top window with content protection — hidden from screen shares and screenshots on Windows.                        |
 | 🎙️ **Local voice-to-text**  | `whisper.cpp` with Vulkan GPU acceleration and a safe CPU fallback. No STT API keys.                                        |
 | 🧠 **Bring your own AI**    | Claude Code CLI, Google Antigravity CLI (`agy`), Gemini / Groq keys, or a local GGUF model.                                 |
+| 🔀 **Mixed mode**           | Choose per task: for example voice over Gemini Live and screen analysis through your CLI subscription.                      |
+| 🔑 **Backup API keys**      | Add any number of Gemini and Groq keys; the next one takes over when a key is rate-limited or rejected.                     |
+| 🎛️ **Model choice**         | Pick the Gemini models yourself, type any model ID, or load the list your key can use.                                      |
 | 🔁 **Live provider switch** | Swap between Claude and Gemini mid-session with context preserved, plus auto-fallback on rate limits.                       |
 | 📂 **Context folder**       | Drop slides, PDFs, docs and notes — answers are grounded in your own material.                                              |
 | 🎯 **Presets**              | Job interview, exam, meeting, sales call, presentation, negotiation — plus your own custom presets with saved instructions. |
@@ -49,6 +52,8 @@ using your own **Claude Pro** or **Google AI Pro** subscription — or fully off
 <br />
 
 <div align="center">
+<img src="docs/screenshots/mixed.png" alt="Mixed mode: choose a provider per task" width="49%" />
+<img src="docs/screenshots/keys.png" alt="Backup API keys and Gemini model choice" width="49%" />
 <img src="docs/screenshots/live.png" alt="Live session with transcript" width="49%" />
 <img src="docs/screenshots/ai-context.png" alt="Custom presets" width="49%" />
 <img src="docs/screenshots/settings.png" alt="Settings" width="49%" />
@@ -64,7 +69,9 @@ using your own **Claude Pro** or **Google AI Pro** subscription — or fully off
 1. Download **`Cheating-Daddy-Setup.exe`** (installer) or **`Cheating Daddy-win32-x64-*.zip`** (portable) from the [**Releases**](https://github.com/Jenakonda/cheating-daddy-Modify/releases) page.
 2. Run the installer, or extract the ZIP and start `Cheating Daddy.exe`.
     > First launch on an unsigned build: Windows SmartScreen → **More info** → **Run anyway**.
-3. On **Home**, under **CLI Availability**, click **Install & Sign In** on the **Claude CLI** or **Gemini (`agy`)** card. The CLI is installed and you sign in with your subscription in one click.
+3. On **Home**, pick a mode with the tabs at the top:
+    - **CLI:** under **CLI Availability**, click **Install & Sign In** on the **Claude CLI** or **Gemini (`agy`)** card. The CLI is installed and you sign in with your subscription in one click.
+    - **API:** open the **Gemini** section and paste your [API key](https://aistudio.google.com/apikey).
 
 ### Option 2 — Run from source
 
@@ -105,8 +112,18 @@ npm start
 | Mode                | Needs                       | Good for                                                                   |
 | ------------------- | --------------------------- | -------------------------------------------------------------------------- |
 | **CLI** _(default)_ | Claude Pro / Google AI Pro  | No API keys. Claude models + effort, all live `agy` models, auto-fallback. |
-| **BYOK**            | Gemini Live / Groq API keys | Direct API access with your own keys.                                      |
+| **API**             | Gemini Live / Groq API keys | The fastest voice answers, with your own keys and the models you choose.   |
 | **Local AI**        | Nothing — runs on your PC   | Fully offline: `llama.cpp` language model + `whisper.cpp` transcription.   |
+| **Mixed**           | A CLI and API keys          | A different provider for voice questions, screen analysis and typed input. |
+
+Switch modes with the tabs at the top of **Home**.
+
+**API and Mixed modes**
+
+- **Models.** The defaults are `gemini-3.8-live` (voice) and `gemini-3.8-flash` (screen analysis). Google retires models from time to time: choose another one on Home. A busy screen analysis model is retried and then replaced by a backup model, and the answer says so.
+- **Backup keys.** Press **+ Add backup key** under Gemini or Groq. Google counts Gemini limits per project, so keys from the same project share one quota.
+- **Long sessions.** A dropped Gemini Live connection is reconnected and the conversation resumed.
+- **Mixed mode context.** The CLI receives what the API answered. Gemini Live does not see CLI or screen analysis answers.
 
 <br />
 
@@ -127,8 +144,8 @@ Verified `whisper.cpp` binaries and quantized models (`small-q5_1`, `base-q5_1`,
 Drop files into the context folder right from **Home** or **AI Context**.
 
 - **Formats:** `.pptx` (slides + speaker notes), `.odp`, `.pdf` (per page, Unicode-safe), `.docx`, `.odt`, `.rtf`, `.xlsx`, `.html`, `.md`, `.txt`, `.csv`, `.json`, `.yaml` and source code.
-- **Full mode** (≤ 24,000 chars): everything is loaded into the session context and cached.
-- **Smart search** (> 24,000 chars): a compact catalog goes into the prompt and the top 5 matching chunks (`[Context: file · Slide/Page]`) are attached to each question.
+- **Full** (≤ 24,000 chars): everything is loaded into the session context. Works in CLI and API modes.
+- **Smart search** (> 24,000 chars): a compact catalog goes into the prompt and, in **CLI** mode, the top 5 matching chunks (`[Context: file · Slide/Page]`) are attached to each typed or spoken question. API mode only gets the catalog, so keep the folder within the Full limit if you use Gemini Live. Local mode switches to the catalog above 10,000 chars.
 
 <br />
 
@@ -158,7 +175,7 @@ Preferences, credentials, session history, downloaded binaries and models, and t
 | **macOS**   | `~/Library/Application Support/cheating-daddy-config` |
 | **Linux**   | `~/.config/cheating-daddy-config`                     |
 
-API keys are stored encrypted with your operating system (Windows DPAPI, macOS Keychain, Linux keyring) when it is available. Nothing personal is ever committed to this repository. Local mode keeps transcription and the language model entirely on-device.
+API keys, including backup keys, are stored encrypted with your operating system (Windows DPAPI, macOS Keychain, Linux keyring) when it is available. History and diagnostic logs are **not** encrypted. The logs contain recognised speech and answers (for Gemini Live also the received messages with reply audio); clear them under **Settings → Data and storage**. Automatic deletion applies to history only. Nothing personal is ever committed to this repository. Local mode keeps transcription and the language model entirely on-device.
 
 <br />
 
@@ -173,10 +190,11 @@ src/
 ├── components/
 │   ├── app/              app shell: sidebar, window controls, live bar
 │   └── views/            Home, Assistant, Settings, History, Help, Onboarding
-└── utils/                CLI runners, Whisper STT, context folder, themes
+├── renderer/             capture, provider start-up, storage bridge, themes
+└── utils/                CLI runners, Gemini and Groq, mode routing, Whisper STT, context folder
 ```
 
-Run `npm test` before committing and `npx prettier --write .` to format. Releases are built by GitHub Actions when a `v*` tag is pushed.
+Run `npm test` (and `npm run test:ui` for screen changes) before committing, and format only the files you touched with `npx prettier@3 --write <files>`. Releases are built by GitHub Actions when a `v*` tag is pushed.
 
 <br />
 

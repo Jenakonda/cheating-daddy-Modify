@@ -17,7 +17,7 @@ npm test           # automated tests (node:test)
 ## Project layout
 
 - `src/index.js`, `src/storage.js`, `src/utils/` – main process and shared logic (CommonJS).
-  Pure logic (presets, update check, data usage, export, health tracking) lives in small modules here
+  Pure logic (presets, update check, data usage, export, health tracking, Gemini model choice, backup keys, mode routing) lives in small modules here
   without Electron imports, so it can be tested in Node.
 - `src/renderer/` – renderer entry (`index.js`, loaded as a classic script by `index.html`) and its modules:
   storage bridge, themes, provider start-up, screen/audio capture, UI helpers. It exposes `window.cheatingDaddy`.
