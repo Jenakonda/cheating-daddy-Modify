@@ -1,14 +1,14 @@
-## Cheating Daddy 0.12.1 — Answer text size
+## Cheating Daddy 0.12.2 — Sessions start again after a network drop
 
 ### Fixed
 
-- **Response Font Size** in Settings showed "mediumpx". It now shows the size in pixels (12–32, default 15).
-- A saved text size now applies as soon as the app starts, not only after Settings has been opened.
-- **Restore all settings** returns the size to 15 px, the same as in a new profile.
+- **API and Mixed sessions stopped starting** after the internet connection was lost for a moment (or the computer slept). The attempt to reconnect to Gemini never ended, so every later **Start Session** failed until the app was restarted. A connection that cannot be opened now fails, after 15 seconds at the latest.
+- The app says **"Cannot reach Google. Check your internet connection and try again."** instead of failing silently, and the next start works.
+- If reconnecting fails during a session, you are told and can start a new one.
 
-If you once used **Restore all settings**, your profile may hold 20 px, so answers can look larger after the update. Move the slider in Settings to change it.
+If the connection is gone for more than a few seconds, the current session still ends: start it again once you are back online.
 
-Everything new in 0.12.0 (Mixed mode, backup API keys, Gemini model choice) is described in the [0.12.0 release notes](https://github.com/Jenakonda/cheating-daddy-Modify/releases/tag/v0.12.0).
+Version [0.12.0](https://github.com/Jenakonda/cheating-daddy-Modify/releases/tag/v0.12.0) introduced Mixed mode, backup API keys and Gemini model choice.
 
 ### Install
 
