@@ -323,3 +323,38 @@ test('the mode switch offers a mixed mode and backup keys are saved encrypted', 
         await app.stop();
     }
 });
+
+test('a saved answer text size applies at start and Settings shows it in pixels', { timeout: 120000 }, async () => {
+    // 'medium' is what older versions saved; the second profile has a size the user picked
+    for (const [saved, expected] of [
+        ['medium', 15],
+        [24, 24],
+    ]) {
+        const app = await startApp({
+            seed: { 'config.json': { configVersion: 1, onboarded: true, layout: 'normal' }, 'preferences.json': { fontSize: saved } },
+        });
+        try {
+            const applied = () => app.evaluate(`document.documentElement.style.getPropertyValue('--response-font-size')`);
+            await waitFor(async () => (await applied()) === `${expected}px`, { label: 'the saved size to apply on the Home screen' });
+
+            await app.evaluate(`${APP}.navigate('customize')`);
+            const labels = `[...${APP}.shadowRoot.querySelector('customize-view').shadowRoot.querySelectorAll('.slider-value')].map(el => el.textContent.trim())`;
+            await waitFor(() => app.evaluate(`!!${APP}.shadowRoot.querySelector('customize-view') && ${labels}.includes('${expected}px')`), {
+                label: 'the size in Settings',
+            });
+
+            await app.evaluate(`${APP}.navigate('assistant')`);
+            await waitFor(
+                () =>
+                    app.evaluate(`(() => {
+                        const view = ${APP}.shadowRoot.querySelector('assistant-view');
+                        const box = view && view.shadowRoot.querySelector('.response-container');
+                        return !!box && getComputedStyle(box).fontSize === '${expected}px';
+                    })()`),
+                { label: 'the answer text to use the size' }
+            );
+        } finally {
+            await app.stop();
+        }
+    }
+});

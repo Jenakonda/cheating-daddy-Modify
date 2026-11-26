@@ -13,6 +13,17 @@ const CONFIG_VERSION = 1;
 // Raised when saved Gemini model defaults have to be replaced once
 const GEMINI_DEFAULTS_VERSION = 2;
 
+// Size of the answer text in pixels; the range matches the slider in Settings
+const DEFAULT_FONT_SIZE = 15;
+const MIN_FONT_SIZE = 12;
+const MAX_FONT_SIZE = 32;
+
+/** Older versions saved a word such as 'medium', which is not a size. */
+function normalizeFontSize(value) {
+    const size = Number.parseInt(value, 10);
+    return Number.isFinite(size) ? Math.min(Math.max(size, MIN_FONT_SIZE), MAX_FONT_SIZE) : DEFAULT_FONT_SIZE;
+}
+
 // Default values
 const DEFAULT_CONFIG = {
     configVersion: CONFIG_VERSION,
@@ -50,7 +61,7 @@ const DEFAULT_PREFERENCES = {
     selectedImageQuality: 'medium',
     advancedMode: false,
     audioMode: 'speaker_only',
-    fontSize: 'medium',
+    fontSize: DEFAULT_FONT_SIZE,
     backgroundTransparency: 0.8,
     googleSearchEnabled: false,
     localLlmModel: 'unsloth/Qwen3.5-4B-GGUF:Q4_K_M',
@@ -360,12 +371,16 @@ function getPreferences() {
     preferences.cliGeminiModel = legacyGeminiCliModels[preferences.cliGeminiModel] || preferences.cliGeminiModel;
     preferences.customPresets = sanitizeCustomPresets(preferences.customPresets);
     preferences.mixedRoutes = normalizeMixedRoutes(preferences.mixedRoutes);
+    preferences.fontSize = normalizeFontSize(preferences.fontSize);
     return preferences;
 }
 
 function normalizePreferenceValue(key, value) {
     if (key === 'customPresets') {
         return sanitizeCustomPresets(value);
+    }
+    if (key === 'fontSize') {
+        return normalizeFontSize(value);
     }
     if (key === 'mixedRoutes') {
         return normalizeMixedRoutes(value);

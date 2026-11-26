@@ -239,7 +239,7 @@ export class CustomizeView extends LitElement {
         this.clearStatusMessage = '';
         this.clearStatusType = '';
         this.backgroundTransparency = 0.8;
-        this.fontSize = 20;
+        this.fontSize = 15;
         this.audioMode = 'speaker_only';
         this.customPrompt = '';
         this.theme = 'dark';
@@ -260,7 +260,7 @@ export class CustomizeView extends LitElement {
             const [prefs, keybinds] = await Promise.all([cheatingDaddy.storage.getPreferences(), cheatingDaddy.storage.getKeybinds()]);
             this.googleSearchEnabled = prefs.googleSearchEnabled ?? true;
             this.backgroundTransparency = prefs.backgroundTransparency ?? 0.8;
-            this.fontSize = prefs.fontSize ?? 20;
+            this.fontSize = prefs.fontSize ?? 15;
             this.audioMode = prefs.audioMode ?? 'speaker_only';
             this.customPrompt = prefs.customPrompt ?? '';
             this.theme = prefs.theme ?? 'dark';
@@ -538,7 +538,7 @@ export class CustomizeView extends LitElement {
                 selectedScreenshotInterval: '5',
                 selectedImageQuality: 'medium',
                 audioMode: 'speaker_only',
-                fontSize: 20,
+                fontSize: 15,
                 backgroundTransparency: 0.8,
                 googleSearchEnabled: false,
                 theme: 'dark',

@@ -598,6 +598,8 @@ export class CheatingDaddyApp extends LitElement {
             this.selectedScreenshotInterval = prefs.selectedScreenshotInterval || '5';
             this.selectedImageQuality = prefs.selectedImageQuality || 'medium';
             this.layoutMode = config.layout || 'normal';
+            // Apply the saved answer text size at start, not only once Settings has been opened
+            document.documentElement.style.setProperty('--response-font-size', `${prefs.fontSize}px`);
 
             this._storageLoaded = true;
             this.requestUpdate();
