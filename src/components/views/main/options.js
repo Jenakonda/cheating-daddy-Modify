@@ -215,3 +215,36 @@ export function resolveAgyModelSelection(modelId, families) {
 
     return { mode: 'custom', family: null, tier: null };
 }
+
+// Suggestions for BYOK mode. The full list for a key is loaded from Google on demand.
+export const GEMINI_MODEL_PRESETS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
+export const GEMINI_LIVE_MODEL_PRESETS = ['gemini-3.8-live', 'gemini-3.1-flash-live-preview', 'gemini-2.5-flash-native-audio-preview-12-2025'];
+
+/** Models to offer: the ones Google reported for the key, or the presets before that. */
+export function geminiModelChoices(presets, loaded) {
+    return Array.isArray(loaded) && loaded.length > 0 ? loaded : presets;
+}
+
+export const MODE_OPTIONS = [
+    { value: 'cli', label: 'CLI', hint: 'Subscriptions', description: 'Use Claude Pro & Google AI Pro CLI subscriptions' },
+    { value: 'byok', label: 'API', hint: 'Your keys', description: 'Bring your own API keys' },
+    { value: 'local', label: 'Local', hint: 'On this PC', description: 'Run models locally on your machine' },
+    { value: 'mixed', label: 'Mixed', hint: 'CLI + API', description: 'Choose what handles voice, screen analysis and typed questions' },
+];
+
+const CLI_ROUTE = { value: 'cli', label: 'CLI (subscription)' };
+const API_ROUTE = { value: 'byok', label: 'API (your keys)' };
+
+export const MIXED_ROUTE_FIELDS = [
+    {
+        task: 'voice',
+        label: 'Voice questions',
+        options: [
+            { value: 'byok', label: 'API: Gemini Live (fastest)' },
+            { value: 'cli', label: 'CLI: local Whisper + subscription' },
+        ],
+    },
+    { task: 'screen', label: 'Screen analysis', options: [CLI_ROUTE, API_ROUTE] },
+    { task: 'text', label: 'Typed questions', options: [CLI_ROUTE, API_ROUTE] },
+];

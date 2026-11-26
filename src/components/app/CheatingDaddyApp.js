@@ -537,6 +537,7 @@ export class CheatingDaddyApp extends LitElement {
         this.layoutMode = 'normal';
         this.responses = [];
         this.currentResponseIndex = -1;
+        this._responseStreams = new Map();
         this._viewInstances = new Map();
         this._isClickThrough = false;
         this._awaitingNewResponse = false;
@@ -612,8 +613,8 @@ export class CheatingDaddyApp extends LitElement {
 
         if (window.require) {
             const { ipcRenderer } = window.require('electron');
-            ipcRenderer.on('new-response', (_, response) => this.addNewResponse(response));
-            ipcRenderer.on('update-response', (_, response) => this.updateCurrentResponse(response));
+            ipcRenderer.on('new-response', (_, response, stream) => this.addNewResponse(response, stream));
+            ipcRenderer.on('update-response', (_, response, stream) => this.updateCurrentResponse(response, stream));
             ipcRenderer.on('update-status', (_, status) => this.setStatus(status));
             ipcRenderer.on('click-through-toggled', (_, isEnabled) => {
                 this._isClickThrough = isEnabled;
@@ -711,9 +712,13 @@ export class CheatingDaddyApp extends LitElement {
         }
     }
 
-    addNewResponse(response) {
+    // A stream id keeps two answers that arrive at the same time (mixed mode) from overwriting each other
+    addNewResponse(response, stream) {
         const wasOnLatest = this.currentResponseIndex === this.responses.length - 1;
         this.responses = [...this.responses, response];
+        if (stream) {
+            this._responseStreams.set(stream, this.responses.length - 1);
+        }
         if (wasOnLatest || this.currentResponseIndex === -1) {
             this.currentResponseIndex = this.responses.length - 1;
         }
@@ -721,12 +726,13 @@ export class CheatingDaddyApp extends LitElement {
         this.requestUpdate();
     }
 
-    updateCurrentResponse(response) {
-        if (this.responses.length > 0) {
-            this.responses = [...this.responses.slice(0, -1), response];
-        } else {
-            this.addNewResponse(response);
+    updateCurrentResponse(response, stream) {
+        const index = stream ? this._responseStreams.get(stream) : this.responses.length - 1;
+        if (index === undefined || index < 0 || index >= this.responses.length) {
+            this.addNewResponse(response, stream);
+            return;
         }
+        this.responses = this.responses.map((existing, position) => (position === index ? response : existing));
         this.requestUpdate();
     }
 
@@ -799,21 +805,23 @@ export class CheatingDaddyApp extends LitElement {
                 return;
             }
         } else {
-            const apiKey = await cheatingDaddy.storage.getApiKey();
-            if (!apiKey || apiKey === '') {
+            const result =
+                providerMode === 'mixed'
+                    ? await cheatingDaddy.initializeMixed(this.selectedProfile, this.selectedLanguage)
+                    : await cheatingDaddy.initializeGemini(this.selectedProfile, this.selectedLanguage);
+            if (!result.success) {
                 const mainView = this.shadowRoot.querySelector('main-view');
-                if (mainView && mainView.triggerApiKeyError) {
-                    mainView.triggerApiKeyError();
+                if (mainView && mainView.triggerStartError) {
+                    mainView.triggerStartError(result.error);
                 }
                 return;
             }
-
-            await cheatingDaddy.initializeGemini(this.selectedProfile, this.selectedLanguage);
         }
 
         cheatingDaddy.startCapture(this.selectedScreenshotInterval, this.selectedImageQuality);
         this.responses = [];
         this.currentResponseIndex = -1;
+        this._responseStreams = new Map();
         this._bufferedCandidateCount = 0;
         this._cliHealth = null;
         this._transcript = [];

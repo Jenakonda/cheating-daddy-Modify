@@ -2,17 +2,16 @@
 const { ipcRenderer } = require('electron');
 const { storage, loadPreferencesCache } = require('./storage');
 
+// The main process reads the saved keys itself, including the backup ones
 async function initializeGemini(profile = 'interview', language = 'en-US') {
-    const apiKey = await storage.getApiKey();
-    if (apiKey) {
-        const prefs = await storage.getPreferences();
-        const success = await ipcRenderer.invoke('initialize-gemini', apiKey, prefs.customPrompt || '', profile, language);
-        if (success) {
-            window.cheatingDaddy.setStatus('Live');
-        } else {
-            window.cheatingDaddy.setStatus('error');
-        }
-    }
+    const prefs = await storage.getPreferences();
+    const result = await ipcRenderer.invoke('initialize-gemini', prefs.customPrompt || '', profile, language);
+    window.cheatingDaddy.setStatus(result.success ? 'Live' : 'error');
+    return result;
+}
+
+async function listGeminiModels() {
+    return ipcRenderer.invoke('gemini:list-models');
 }
 
 async function initializeLocal(profile = 'interview') {
@@ -35,10 +34,9 @@ async function cancelLocalInitialization() {
     return ipcRenderer.invoke('cancel-local-initialization');
 }
 
-async function initializeCli(profile = 'interview', language = null) {
-    const prefs = await storage.getPreferences();
+function buildCliOptions(prefs, profile, language) {
     const resolvedLanguage = language || prefs.selectedLanguage || 'auto';
-    const options = {
+    return {
         primaryProvider: prefs.cliPrimaryProvider || 'claude',
         fallbackEnabled: prefs.cliFallbackEnabled ?? true,
         useSubscriptionAuth: prefs.cliUseSubscriptionAuth ?? true,
@@ -59,13 +57,26 @@ async function initializeCli(profile = 'interview', language = null) {
         audioMode: prefs.audioMode || 'speaker_only',
         micContextOnly: prefs.cliMicContextOnly ?? true,
     };
+}
 
-    const success = await ipcRenderer.invoke('initialize-cli', options);
+async function initializeCli(profile = 'interview', language = null) {
+    const prefs = await storage.getPreferences();
+    const success = await ipcRenderer.invoke('initialize-cli', buildCliOptions(prefs, profile, language));
     if (!success) {
         window.cheatingDaddy.setStatus('error');
         return false;
     }
     return true;
+}
+
+// CLI and API together; which one serves what is read from the saved routes
+async function initializeMixed(profile = 'interview', language = null) {
+    const prefs = await storage.getPreferences();
+    const result = await ipcRenderer.invoke('initialize-mixed', buildCliOptions(prefs, profile, language));
+    if (!result.success) {
+        window.cheatingDaddy.setStatus('error');
+    }
+    return result;
 }
 
 async function cancelCliInitialization() {
@@ -96,9 +107,11 @@ async function suggestCliContinuation() {
 
 module.exports = {
     initializeGemini,
+    listGeminiModels,
     initializeLocal,
     cancelLocalInitialization,
     initializeCli,
+    initializeMixed,
     cancelCliInitialization,
     checkCliStatus,
     launchCliSetup,

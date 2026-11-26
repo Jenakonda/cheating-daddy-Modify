@@ -40,6 +40,13 @@ const storage = {
     },
 
     // Preferences
+    async getBackupKeys(provider) {
+        const result = await ipcRenderer.invoke('storage:get-backup-keys', provider);
+        return result.success ? result.data : [];
+    },
+    async setBackupKeys(provider, keys) {
+        return ipcRenderer.invoke('storage:set-backup-keys', provider, keys);
+    },
     async getPreferences() {
         const result = await ipcRenderer.invoke('storage:get-preferences');
         return result.success ? result.data : {};

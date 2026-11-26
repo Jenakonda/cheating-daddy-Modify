@@ -182,6 +182,30 @@ function setupStorageIpcHandlers() {
         }
     });
 
+    ipcMain.handle('storage:get-backup-keys', async (event, provider) => {
+        if (provider !== 'gemini' && provider !== 'groq') {
+            return { success: false, error: 'Invalid provider' };
+        }
+        try {
+            return { success: true, data: storage.getBackupKeys(provider) };
+        } catch (error) {
+            console.error('Error getting backup keys:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
+    ipcMain.handle('storage:set-backup-keys', async (event, provider, keys) => {
+        if ((provider !== 'gemini' && provider !== 'groq') || !Array.isArray(keys)) {
+            return { success: false, error: 'Invalid backup keys' };
+        }
+        try {
+            return { success: storage.setBackupKeys(provider, keys) };
+        } catch (error) {
+            console.error('Error saving backup keys:', error.message);
+            return { success: false, error: error.message };
+        }
+    });
+
     // ============ PREFERENCES ============
     ipcMain.handle('storage:get-preferences', async () => {
         try {

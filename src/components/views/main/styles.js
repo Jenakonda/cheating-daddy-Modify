@@ -547,86 +547,73 @@ export const mainViewStyles = css`
         font-family: var(--font-mono);
     }
 
-    /* ── Divider ── */
+    /* ── Mode switch ── */
 
-    .divider {
-        display: flex;
-        align-items: center;
-        gap: var(--space-md);
-        margin: var(--space-sm) 0;
+    .mode-switch {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        background: var(--bg-surface);
     }
 
-    .divider-line {
-        flex: 1;
-        height: 1px;
-        background: var(--border);
-    }
-
-    .divider-text {
-        font-size: var(--font-size-xs);
-        color: var(--text-muted);
-        text-transform: lowercase;
-    }
-
-    /* ── Mode switch links ── */
-
-    .mode-links {
-        display: flex;
-        justify-content: center;
-        gap: var(--space-lg);
-    }
-
-    .mode-link {
-        font-size: var(--font-size-sm);
-        color: var(--text-secondary);
-        cursor: pointer;
-        background: none;
-        border: none;
-        padding: 0;
-        transition: color var(--transition);
-    }
-
-    .mode-link:hover {
-        color: var(--text-primary);
-    }
-
-    /* ── Mode option cards ── */
-
-    .mode-cards {
-        display: flex;
-        gap: var(--space-sm);
-    }
-
-    .mode-card {
-        flex: 1;
+    .mode-tab {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        padding: 12px 14px;
+        align-items: center;
+        gap: 2px;
+        padding: 8px 4px;
+        min-width: 0;
+        border: 1px solid transparent;
         border-radius: var(--radius-md);
-        border: 1px solid var(--border);
-        background: var(--bg-elevated);
+        background: none;
         cursor: pointer;
         transition:
-            border-color 0.2s,
-            background 0.2s;
+            border-color var(--transition),
+            background var(--transition);
     }
 
-    .mode-card:hover {
-        border-color: var(--text-muted);
+    .mode-tab:hover:not(.active) {
         background: var(--bg-hover);
     }
 
-    .mode-card-title {
+    .mode-tab.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+    }
+
+    .mode-tab:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+    }
+
+    .mode-tab * {
+        cursor: pointer;
+    }
+
+    .mode-tab-title {
         font-size: var(--font-size-sm);
-        font-weight: var(--font-weight-semibold);
+        font-weight: var(--font-weight-medium);
         color: var(--text-primary);
     }
 
-    .mode-card-desc {
+    .mode-tab-hint {
         font-size: var(--font-size-xs);
         color: var(--text-muted);
-        line-height: var(--line-height);
+    }
+
+    /* ── Backup keys ── */
+
+    .key-row {
+        display: flex;
+        gap: 6px;
+    }
+
+    .key-row input {
+        flex: 1;
+        min-width: 0;
     }
 
     /* ── Title row with help ── */

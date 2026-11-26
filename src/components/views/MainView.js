@@ -16,6 +16,11 @@ import {
     AGY_GROUP_ORDER,
     buildAgyModelFamilies,
     resolveAgyModelSelection,
+    GEMINI_MODEL_PRESETS,
+    GEMINI_LIVE_MODEL_PRESETS,
+    geminiModelChoices,
+    MODE_OPTIONS,
+    MIXED_ROUTE_FIELDS,
 } from './main/options.js';
 
 export class MainView extends LitElement {
@@ -39,6 +44,13 @@ export class MainView extends LitElement {
         _groqKey: { state: true },
         _openaiKey: { state: true },
         _geminiLiveModel: { state: true },
+        _geminiModel: { state: true },
+        _geminiModelLists: { state: true },
+        _geminiCustomFields: { state: true },
+        _geminiModelStatus: { state: true },
+        _startError: { state: true },
+        _backupKeys: { state: true },
+        _mixedRoutes: { state: true },
         _groqModel: { state: true },
         _groqImageModel: { state: true },
         _disableGroqThinking: { state: true },
@@ -97,7 +109,14 @@ export class MainView extends LitElement {
         this._geminiKey = '';
         this._groqKey = '';
         this._openaiKey = '';
-        this._geminiLiveModel = 'gemini-3.1-flash-live-preview';
+        this._geminiLiveModel = 'gemini-3.8-live';
+        this._geminiModel = 'gemini-3.8-flash';
+        this._geminiModelLists = null;
+        this._geminiCustomFields = {};
+        this._geminiModelStatus = '';
+        this._startError = '';
+        this._backupKeys = { gemini: [], groq: [] };
+        this._mixedRoutes = { voice: 'byok', screen: 'cli', text: 'cli' };
         this._groqModel = 'qwen/qwen3.6-27b';
         this._groqImageModel = 'qwen/qwen3.6-27b';
         this._disableGroqThinking = true;
@@ -173,7 +192,13 @@ export class MainView extends LitElement {
             this._geminiKey = (await cheatingDaddy.storage.getApiKey().catch(() => '')) || '';
             this._groqKey = (await cheatingDaddy.storage.getGroqApiKey().catch(() => '')) || '';
             this._openaiKey = creds.openaiKey || '';
-            this._geminiLiveModel = config.geminiLiveModel || 'gemini-3.1-flash-live-preview';
+            this._backupKeys = {
+                gemini: await cheatingDaddy.storage.getBackupKeys('gemini').catch(() => []),
+                groq: await cheatingDaddy.storage.getBackupKeys('groq').catch(() => []),
+            };
+            this._mixedRoutes = { ...this._mixedRoutes, ...prefs.mixedRoutes };
+            this._geminiLiveModel = config.geminiLiveModel || 'gemini-3.8-live';
+            this._geminiModel = config.geminiModel || 'gemini-3.8-flash';
             this._groqModel = config.groqModel || 'qwen/qwen3.6-27b';
             this._groqImageModel = config.groqImageModel || 'qwen/qwen3.6-27b';
             this._disableGroqThinking = config.disableGroqThinking === true;
@@ -246,7 +271,7 @@ export class MainView extends LitElement {
     }
 
     async _handleWindowFocus() {
-        if (!this._pendingCliSetupRefresh || this._mode !== 'cli') {
+        if (!this._pendingCliSetupRefresh || !this._usesCli()) {
             return;
         }
         this._pendingCliSetupRefresh = false;
@@ -315,6 +340,39 @@ export class MainView extends LitElement {
         }
     }
 
+    // ── Mode and keys ──
+
+    _usesCli() {
+        return this._mode === 'cli' || (this._mode === 'mixed' && Object.values(this._mixedRoutes).includes('cli'));
+    }
+
+    _usesApi() {
+        return this._mode === 'byok' || (this._mode === 'mixed' && Object.values(this._mixedRoutes).includes('byok'));
+    }
+
+    _hasApiKey(provider) {
+        const primary = provider === 'gemini' ? this._geminiKey : this._groqKey;
+        return Boolean(primary.trim()) || this._backupKeys[provider].some(key => key.trim());
+    }
+
+    async _saveMixedRoute(task, value) {
+        this._mixedRoutes = { ...this._mixedRoutes, [task]: value };
+        this._cliError = '';
+        this._startError = '';
+        this._keyError = false;
+        await cheatingDaddy.storage.updatePreference('mixedRoutes', this._mixedRoutes);
+        if (value === 'cli') {
+            this._refreshCliStatus();
+        }
+    }
+
+    async _saveBackupKeys(provider, keys) {
+        this._backupKeys = { ...this._backupKeys, [provider]: keys };
+        this._keyError = false;
+        this._startError = '';
+        await cheatingDaddy.storage.setBackupKeys(provider, keys);
+    }
+
     // ── Persistence ──
 
     async _saveMode(mode) {
@@ -322,8 +380,9 @@ export class MainView extends LitElement {
         this._tokenError = false;
         this._keyError = false;
         this._cliError = '';
+        this._startError = '';
         await cheatingDaddy.storage.updatePreference('providerMode', mode);
-        if (mode === 'cli') {
+        if (this._usesCli()) {
             this._refreshCliStatus();
         }
         this.requestUpdate();
@@ -332,6 +391,9 @@ export class MainView extends LitElement {
     async _saveGeminiKey(val) {
         this._geminiKey = val;
         this._keyError = false;
+        this._geminiModelLists = null;
+        this._geminiModelStatus = '';
+        this._startError = '';
         await cheatingDaddy.storage.setApiKey(val);
         this.requestUpdate();
     }
@@ -344,8 +406,50 @@ export class MainView extends LitElement {
 
     async _saveGeminiLiveModel(val) {
         this._geminiLiveModel = val;
+        this._startError = '';
         await cheatingDaddy.storage.updateConfig('geminiLiveModel', val);
         this.requestUpdate();
+    }
+
+    async _saveGeminiModel(val) {
+        this._geminiModel = val;
+        await cheatingDaddy.storage.updateConfig('geminiModel', val);
+        this.requestUpdate();
+    }
+
+    async _loadGeminiModels() {
+        this._geminiModelStatus = 'Loading...';
+        const result = await cheatingDaddy.listGeminiModels();
+        if (result.success) {
+            this._geminiModelLists = result.data;
+            this._geminiModelStatus = `Loaded ${result.data.generate.length + result.data.live.length} models available to your key.`;
+        } else {
+            this._geminiModelStatus = result.error;
+        }
+    }
+
+    triggerStartError(message) {
+        this._startError = message || 'Could not start the session.';
+    }
+
+    _renderGeminiModelSelect({ field, label, value, choices, save }) {
+        const custom = this._geminiCustomFields[field] || !choices.includes(value);
+        return html`
+            <div class="form-group" data-field=${field}>
+                <label class="form-label">${label}</label>
+                <select
+                    @change=${e => {
+                        const next = e.target.value;
+                        this._geminiCustomFields = { ...this._geminiCustomFields, [field]: next === '__custom__' };
+                        if (next !== '__custom__') save(next);
+                    }}
+                >
+                    ${choices.map(id => html`<option value=${id} .selected=${!custom && id === value}>${id}</option>`)}
+                    <option value="__custom__" .selected=${custom}>Custom model ID...</option>
+                </select>
+                ${custom ? html`<input type="text" placeholder="e.g. ${choices[0]}" .value=${value} @input=${e => save(e.target.value)} />` : ''}
+            </div>
+        `;
     }
 
     async _saveGroqModel(val) {
@@ -734,21 +838,24 @@ export class MainView extends LitElement {
     _handleStart() {
         if (this.isInitializing || this.downloadProgress.active) return;
 
-        if (this._mode === 'cli') {
+        if (this._mode === 'local') {
+            if (!this._localLlmModel.trim()) {
+                return;
+            }
+        }
+        if (this._usesCli()) {
             this._cliError = '';
             if (this._cliStatus && !this._cliStatus.claude?.installed && !this._cliStatus.gemini?.installed) {
                 this._cliError = 'Neither Claude CLI nor Gemini CLI was found. Install at least one CLI or specify a custom path.';
                 this.requestUpdate();
                 return;
             }
-        } else if (this._mode === 'byok') {
-            if (!this._geminiKey.trim()) {
+        }
+        if (this._usesApi()) {
+            const needsGemini = this._mode === 'byok' || this._mixedRoutes.voice === 'byok';
+            if (!this._hasApiKey('gemini') && (needsGemini || !this._hasApiKey('groq'))) {
                 this._keyError = true;
-                this.requestUpdate();
-                return;
-            }
-        } else if (this._mode === 'local') {
-            if (!this._localLlmModel.trim()) {
+                this._startError = needsGemini ? 'Enter a Gemini API key first.' : 'Enter a Gemini or Groq API key first.';
                 return;
             }
         }
@@ -775,7 +882,7 @@ export class MainView extends LitElement {
 
     _renderStartButton() {
         const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-        const isDownloading = (this._mode === 'local' || this._mode === 'cli') && this.downloadProgress.active;
+        const isDownloading = (this._mode === 'local' || this._usesCli()) && this.downloadProgress.active;
         const percentage = this.downloadProgress.percentage;
         const hasPercentage = Number.isFinite(percentage);
 
@@ -854,17 +961,29 @@ export class MainView extends LitElement {
         `;
     }
 
-    _renderDivider() {
+    _renderModeSwitch() {
         return html`
-            <div class="divider">
-                <div class="divider-line"></div>
-                <span class="divider-text">or</span>
-                <div class="divider-line"></div>
+            <div class="mode-switch" role="radiogroup" aria-label="AI provider mode">
+                ${MODE_OPTIONS.map(
+                    option => html`
+                        <button
+                            type="button"
+                            role="radio"
+                            aria-checked=${this._mode === option.value ? 'true' : 'false'}
+                            class="mode-tab ${this._mode === option.value ? 'active' : ''}"
+                            data-mode=${option.value}
+                            @click=${() => this._saveMode(option.value)}
+                        >
+                            <span class="mode-tab-title">${option.label}</span>
+                            <span class="mode-tab-hint">${option.hint}</span>
+                        </button>
+                    `
+                )}
             </div>
         `;
     }
 
-    // ── BYOK mode ──
+    // ── API mode ──
 
     _renderConfigChevron() {
         return html`
@@ -874,13 +993,68 @@ export class MainView extends LitElement {
         `;
     }
 
+    _renderKeyBackups(provider, label) {
+        const keys = this._backupKeys[provider];
+        return html`
+            <div class="form-group" data-backups=${provider}>
+                <label class="form-label">Backup ${label} keys</label>
+                ${keys.map(
+                    (key, index) => html`
+                        <div class="key-row">
+                            <input
+                                type="password"
+                                placeholder="Backup key ${index + 1}"
+                                .value=${key}
+                                @input=${e =>
+                                    this._saveBackupKeys(
+                                        provider,
+                                        this._backupKeys[provider].map((existing, position) => (position === index ? e.target.value : existing))
+                                    )}
+                            />
+                            <button
+                                type="button"
+                                class="context-action-btn key-remove"
+                                aria-label="Remove backup key ${index + 1}"
+                                @click=${() =>
+                                    this._saveBackupKeys(
+                                        provider,
+                                        this._backupKeys[provider].filter((_, position) => position !== index)
+                                    )}
+                            >
+                                Remove
+                            </button>
+                        </div>
+                    `
+                )}
+                <div>
+                    <button
+                        type="button"
+                        class="context-action-btn key-add"
+                        @click=${() => this._saveBackupKeys(provider, [...this._backupKeys[provider], ''])}
+                    >
+                        + Add backup key
+                    </button>
+                </div>
+                <div class="form-hint">Used automatically when the key above hits its limit or is rejected.</div>
+            </div>
+        `;
+    }
+
+    _renderStartError() {
+        return this._startError ? html`<div class="config-note" role="alert">${this._startError}</div>` : '';
+    }
+
     _renderByokMode() {
+        return html` ${this._renderStartError()} ${this._renderStartButton()} ${this._renderApiSections()} `;
+    }
+
+    _renderApiSections() {
         return html`
             <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
-                        <span class="config-summary-title">Transcription</span>
-                        <span class="config-summary-description">Gemini Live connection</span>
+                        <span class="config-summary-title">Gemini</span>
+                        <span class="config-summary-description">API key and models</span>
                     </span>
                     ${this._renderConfigChevron()}
                 </summary>
@@ -899,10 +1073,27 @@ export class MainView extends LitElement {
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label">Gemini Live Model</label>
-                        <input type="text" .value=${this._geminiLiveModel} @input=${e => this._saveGeminiLiveModel(e.target.value)} />
+                    ${this._renderKeyBackups('gemini', 'Gemini')}
+                    ${this._renderGeminiModelSelect({
+                        field: 'live',
+                        label: 'Gemini Live Model',
+                        value: this._geminiLiveModel,
+                        choices: geminiModelChoices(GEMINI_LIVE_MODEL_PRESETS, this._geminiModelLists?.live),
+                        save: val => this._saveGeminiLiveModel(val),
+                    })}
+                    ${this._renderGeminiModelSelect({
+                        field: 'screen',
+                        label: 'Gemini Model for screen analysis',
+                        value: this._geminiModel,
+                        choices: geminiModelChoices(GEMINI_MODEL_PRESETS, this._geminiModelLists?.generate),
+                        save: val => this._saveGeminiModel(val),
+                    })}
+
+                    <div class="form-hint">
+                        <span class="link" @click=${() => this._loadGeminiModels()}>Load models available to my key</span>
+                        ${this._geminiModelStatus ? html`<div>${this._geminiModelStatus}</div>` : ''}
                     </div>
+                    <div class="config-note">The screen analysis model is used when no Groq API key is set.</div>
                 </div>
             </details>
 
@@ -922,6 +1113,8 @@ export class MainView extends LitElement {
                             <span class="link" @click=${() => this.onExternalLink('https://console.groq.com/keys')}>Get Groq key</span>
                         </div>
                     </div>
+
+                    ${this._renderKeyBackups('groq', 'Groq')}
 
                     <div class="form-group">
                         <label class="form-label">Groq Model</label>
@@ -950,13 +1143,45 @@ export class MainView extends LitElement {
                     </div>
                 </div>
             </details>
+        `;
+    }
 
-            ${this._renderStartButton()} ${this._renderDivider()}
+    // ── Mixed mode ──
 
-            <div class="mode-links">
-                <button class="mode-link" @click=${() => this._saveMode('cli')}>Use CLI (Pro)</button>
-                <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
+    _renderMixedRoutes() {
+        return html`
+            <div class="quick-settings-card">
+                ${MIXED_ROUTE_FIELDS.map(
+                    field => html`
+                        <div class="form-group route-row" data-route=${field.task}>
+                            <label class="form-label">${field.label}</label>
+                            <select @change=${e => this._saveMixedRoute(field.task, e.target.value)}>
+                                ${field.options.map(
+                                    option =>
+                                        html`<option value=${option.value} .selected=${this._mixedRoutes[field.task] === option.value}>
+                                            ${option.label}
+                                        </option>`
+                                )}
+                            </select>
+                        </div>
+                    `
+                )}
+                <div class="form-hint">The CLI also receives what the API answered. Gemini Live does not see the CLI answers.</div>
             </div>
+        `;
+    }
+
+    _renderMixedMode() {
+        return html`
+            ${this._usesCli() ? html`${this._renderCliStatusBar()} ${this._renderCliError()}` : ''} ${this._renderStartError()}
+            ${this._renderStartButton()}
+            ${
+                this._usesCli()
+                    ? html`${this._renderCliProviderSection()} ${this._renderCliModelsSection()}
+                      ${this._mixedRoutes.voice === 'cli' ? this._renderCliVoiceSection({ optional: false }) : ''} ${this._renderCliPathsSection()}`
+                    : ''
+            }
+            ${this._usesApi() ? this._renderApiSections() : ''}
         `;
     }
 
@@ -1377,19 +1602,23 @@ export class MainView extends LitElement {
 
     _renderCliMode() {
         return html`
-            ${this._renderCliStatusBar()}
-            ${
-                this._cliError
-                    ? html`
-                          <div class="cli-error-banner">
-                              ${this._cliError}
-                              <span class="link" @click=${this._openCliHelp}> Setup guide</span>
-                          </div>
-                      `
-                    : ''
-            }
-            ${this._renderStartButton()}
+            ${this._renderCliStatusBar()} ${this._renderCliError()} ${this._renderStartButton()} ${this._renderCliProviderSection()}
+            ${this._renderCliModelsSection()} ${this._renderCliVoiceSection({ optional: true })} ${this._renderCliPathsSection()}
+        `;
+    }
 
+    _renderCliError() {
+        if (!this._cliError) return '';
+        return html`
+            <div class="cli-error-banner">
+                ${this._cliError}
+                <span class="link" @click=${this._openCliHelp}> Setup guide</span>
+            </div>
+        `;
+    }
+
+    _renderCliProviderSection() {
+        return html`
             <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
@@ -1428,16 +1657,20 @@ export class MainView extends LitElement {
                     </label>
                 </div>
             </details>
+        `;
+    }
 
-            ${this._renderCliModelsSection()}
-
+    // In mixed mode with voice on the CLI, Whisper is always on, so there is nothing to switch
+    _renderCliVoiceSection({ optional }) {
+        const enabled = !optional || this._cliWhisperEnabled;
+        return html`
             <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
                         <span class="config-summary-title">Voice Transcription</span>
                         <span class="config-summary-description"
                             >${
-                                this._cliWhisperEnabled
+                                enabled
                                     ? `Whisper (${this._getWhisperModelShortLabel()}) · ${this._getAudioModeShortLabel()} · ${this._selectedLanguage || this.selectedLanguage || 'auto'}`
                                     : 'Disabled (text & screen only)'
                             }</span
@@ -1446,17 +1679,29 @@ export class MainView extends LitElement {
                     ${this._renderConfigChevron()}
                 </summary>
                 <div class="config-content">
-                    <label class="config-checkbox">
-                        <input type="checkbox" .checked=${this._cliWhisperEnabled} @change=${e => this._saveCliWhisperEnabled(e.target.checked)} />
-                        <span class="config-checkbox-text">
-                            <span class="config-summary-title">Enable local Whisper voice transcription</span>
-                            <span class="config-summary-description">Offline speech-to-text via whisper.cpp (supports Ukrainian)</span>
-                        </span>
-                    </label>
-                    ${this._cliWhisperEnabled ? this._renderCliAudioControls() : ''}
+                    ${
+                        optional
+                            ? html`<label class="config-checkbox">
+                                  <input
+                                      type="checkbox"
+                                      .checked=${this._cliWhisperEnabled}
+                                      @change=${e => this._saveCliWhisperEnabled(e.target.checked)}
+                                  />
+                                  <span class="config-checkbox-text">
+                                      <span class="config-summary-title">Enable local Whisper voice transcription</span>
+                                      <span class="config-summary-description">Offline speech-to-text via whisper.cpp (supports Ukrainian)</span>
+                                  </span>
+                              </label>`
+                            : ''
+                    }
+                    ${enabled ? this._renderCliAudioControls() : ''}
                 </div>
             </details>
+        `;
+    }
 
+    _renderCliPathsSection() {
+        return html`
             <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
@@ -1492,13 +1737,6 @@ export class MainView extends LitElement {
                     </div>
                 </div>
             </details>
-
-            ${this._renderDivider()}
-
-            <div class="mode-links">
-                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
-                <button class="mode-link" @click=${() => this._saveMode('local')}>Use local AI</button>
-            </div>
         `;
     }
 
@@ -1506,6 +1744,8 @@ export class MainView extends LitElement {
 
     _renderLocalMode() {
         return html`
+            ${this._renderStartButton()}
+
             <details class="config-section">
                 <summary class="config-summary">
                     <span class="config-summary-text">
@@ -1551,13 +1791,6 @@ export class MainView extends LitElement {
                 </summary>
                 <div class="config-content">${this._renderWhisperSelect()}</div>
             </details>
-
-            ${this._renderStartButton()} ${this._renderDivider()}
-
-            <div class="mode-links">
-                <button class="mode-link" @click=${() => this._saveMode('cli')}>Use CLI (Pro)</button>
-                <button class="mode-link" @click=${() => this._saveMode('byok')}>Use own API keys</button>
-            </div>
         `;
     }
 
@@ -1701,37 +1934,31 @@ export class MainView extends LitElement {
             <path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 6L6 18M6 6l12 12" />
         </svg>`;
 
-        const subtitleMap = {
-            cli: 'Use Claude Pro & Google AI Pro CLI subscriptions',
-            byok: 'Bring your own API keys',
-            local: 'Run models locally on your machine',
-        };
+        const mode = MODE_OPTIONS.find(option => option.value === this._mode) || MODE_OPTIONS[0];
+        const hasCliHelp = this._mode === 'cli' || this._mode === 'mixed';
 
         return html`
             <div class="form-wrapper">
-                ${
-                    this._mode === 'cli'
-                        ? html`
-                              <div class="title-row">
-                                  <div class="page-title">Cheating Daddy <span class="mode-suffix">CLI</span></div>
-                                  <button class="help-btn" @click=${this._openCliHelp} aria-label="Open CLI setup help">${helpIcon}</button>
-                              </div>
-                          `
-                        : this._mode === 'local'
-                          ? html`
-                                <div class="title-row">
-                                    <div class="page-title">Cheating Daddy <span class="mode-suffix">Local AI</span></div>
-                                    <button class="help-btn" @click=${this._openLocalHelp} aria-label="Open Local AI help">${helpIcon}</button>
-                                </div>
-                            `
-                          : html` <div class="page-title">${html`Cheating Daddy <span class="mode-suffix">BYOK</span>`}</div> `
-                }
-                <div class="page-subtitle">${subtitleMap[this._mode] || subtitleMap.cli}</div>
-
-                ${this._renderSessionQuickSettings()} ${this._renderContextFolderCard()} ${this._mode === 'cli' ? this._renderCliMode() : ''}
-                ${this._mode === 'byok' ? this._renderByokMode() : ''} ${this._mode === 'local' ? this._renderLocalMode() : ''}
+                <div class="title-row">
+                    <div class="page-title">Cheating Daddy</div>
+                    ${
+                        hasCliHelp
+                            ? html`<button class="help-btn" @click=${this._openCliHelp} aria-label="Open CLI setup help">${helpIcon}</button>`
+                            : ''
+                    }
+                    ${
+                        this._mode === 'local'
+                            ? html`<button class="help-btn" @click=${this._openLocalHelp} aria-label="Open Local AI help">${helpIcon}</button>`
+                            : ''
+                    }
+                </div>
+                ${this._renderModeSwitch()}
+                <div class="page-subtitle">${mode.description}</div>
+                ${this._mode === 'mixed' ? this._renderMixedRoutes() : ''} ${this._renderSessionQuickSettings()} ${this._renderContextFolderCard()}
+                ${this._mode === 'cli' ? this._renderCliMode() : ''} ${this._mode === 'byok' ? this._renderByokMode() : ''}
+                ${this._mode === 'local' ? this._renderLocalMode() : ''} ${this._mode === 'mixed' ? this._renderMixedMode() : ''}
             </div>
-            ${this._mode === 'cli' && this._showCliHelp ? this._renderCliHelp(closeIcon) : ''}
+            ${hasCliHelp && this._showCliHelp ? this._renderCliHelp(closeIcon) : ''}
             ${this._mode === 'local' && this._showLocalHelp ? this._renderLocalHelp(closeIcon) : ''}
         `;
     }
@@ -1852,7 +2079,7 @@ export class MainView extends LitElement {
                             <div class="help-section-title">Computer hanging or slow?</div>
                             <div class="help-section-text">
                                 Running models locally uses a lot of RAM and CPU. If your computer slows down or freezes, it's likely the LLM. Switch
-                                back to BYOK mode if you want to use a hosted provider instead.
+                                back to API mode if you want to use a hosted provider instead.
                             </div>
                         </div>
 
@@ -1863,7 +2090,7 @@ export class MainView extends LitElement {
                                 this._saveMode('byok');
                             }}
                         >
-                            Switch to BYOK
+                            Switch to API
                         </button>
                     </div>
                 </section>

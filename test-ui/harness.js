@@ -50,6 +50,8 @@ function seedConfig(profileDir, files) {
 async function startApp({ seed = null } = {}) {
     const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-ui-test-'));
     if (seed) seedConfig(profileDir, seed);
+    // Without this folder, PowerShell started by the app writes its cache into the project directory
+    fs.mkdirSync(path.join(profileDir, 'AppData', 'Local'), { recursive: true });
 
     const port = await getFreePort();
     const electronPath = require('electron');
@@ -135,7 +137,12 @@ async function startApp({ seed = null } = {}) {
             }
         }
         await sleep(800);
-        fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
+        try {
+            fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 8, retryDelay: 300 });
+        } catch (error) {
+            // An installed CLI can outlive the app and keep the folder locked. That is not a test failure.
+            console.warn(`Could not remove the temporary profile ${profileDir}: ${error.code || error.message}`);
+        }
     }
 
     return {

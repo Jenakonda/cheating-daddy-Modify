@@ -546,6 +546,14 @@ test('createCliSessionManager handles auto-fallback with context sync, manual sw
         assert.equal(savedTurns.length, 2);
         assert.equal(savedScreens.length, 1);
 
+        // Mixed mode: an API answer that lands while the CLI is busy still reaches the CLI with the next turn
+        const busyTurn = manager.sendCliText('while busy');
+        await new Promise(resolve => setImmediate(resolve));
+        manager.addExternalTurn('spoken over the API', 'API-ANSWER-MARKER');
+        assert.equal((await busyTurn).success, true);
+        const followUp = await manager.sendCliText('and after');
+        assert.ok(followUp.text.includes('API-ANSWER-MARKER'), 'the external answer was not passed to the CLI');
+
         await manager.closeCliSessionAsync();
         assert.equal(manager.isCliSessionActive(), false);
 

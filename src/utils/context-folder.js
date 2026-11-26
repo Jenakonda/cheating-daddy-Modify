@@ -896,7 +896,7 @@ async function loadContextFolder(folderPath, { inlineCharLimit = DEFAULT_INLINE_
     }
 
     // Large folder (> inlineCharLimit): build compact Document Catalog + opening snippets within ragCatalogLimit
-    const catalogLines = ['Loaded documents (Smart search attaches relevant excerpts automatically per question):'];
+    const catalogLines = ['Loaded documents:'];
     for (const doc of loadedDocs) {
         const meta = [doc.unitsLabel, `${doc.text.length} chars`].filter(Boolean).join(', ');
         catalogLines.push(`- ${doc.relativePath} (${meta})`);

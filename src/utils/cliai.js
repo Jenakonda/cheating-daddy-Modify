@@ -50,7 +50,7 @@ function removeDirWithRetry(dirToDelete, killedProcs = []) {
 
 function createCliSessionManager(deps = {}) {
     const getBridge = deps.getBridge || getGeminiBridge;
-    const sendToRenderer = deps.sendToRenderer || ((channel, data) => getBridge().sendToRenderer(channel, data));
+    const sendToRenderer = deps.sendToRenderer || ((...args) => getBridge().sendToRenderer(...args));
     const initializeNewSession = deps.initializeNewSession || ((profile, customPrompt) => getBridge().initializeNewSession(profile, customPrompt));
     const saveConversationTurn = deps.saveConversationTurn || ((t, r) => getBridge().saveConversationTurn(t, r));
     const saveScreenAnalysis = deps.saveScreenAnalysis || ((p, r, m) => getBridge().saveScreenAnalysis(p, r, m));
@@ -84,6 +84,7 @@ function createCliSessionManager(deps = {}) {
     let providerSyncedTurns = { claude: 0, gemini: 0 };
     let turnQueue = Promise.resolve();
     let generation = 0;
+    let streamCounter = 0;
 
     function getAvailableProviders() {
         return {
@@ -189,7 +190,7 @@ function createCliSessionManager(deps = {}) {
         });
     }
 
-    function pushConversationTurn(userText, assistantText) {
+    function pushConversationTurn(userText, assistantText, external = false) {
         const cleanUser = String(userText || '').trim();
         const cleanAssistant = String(assistantText || '').trim();
         if (!cleanAssistant) return;
@@ -197,6 +198,7 @@ function createCliSessionManager(deps = {}) {
         conversationHistory.push({
             userText: cleanUser,
             assistantText: cleanAssistant,
+            external,
         });
 
         if (conversationHistory.length > 20) {
@@ -204,6 +206,13 @@ function createCliSessionManager(deps = {}) {
             conversationHistory = conversationHistory.slice(-20);
             providerSyncedTurns.claude = Math.max(0, providerSyncedTurns.claude - dropped);
             providerSyncedTurns.gemini = Math.max(0, providerSyncedTurns.gemini - dropped);
+        }
+    }
+
+    /** Adds an answer given by another provider, so the CLI learns about it with its next turn. */
+    function addExternalTurn(userText, assistantText) {
+        if (isCliActive) {
+            pushConversationTurn(userText, assistantText, true);
         }
     }
 
@@ -239,13 +248,16 @@ function createCliSessionManager(deps = {}) {
             }
         }
 
+        const turnsBefore = new Set(conversationHistory);
         let isFirstChunk = true;
+        streamCounter += 1;
+        const stream = `cli-${streamCounter}`;
         const result = await runner.sendTurn({
             text: promptText,
             imageBase64,
             onDelta: partialText => {
                 if (!partialText) return;
-                sendToRenderer(isFirstChunk ? 'new-response' : 'update-response', partialText);
+                sendToRenderer(isFirstChunk ? 'new-response' : 'update-response', partialText, stream);
                 isFirstChunk = false;
             },
         });
@@ -257,7 +269,8 @@ function createCliSessionManager(deps = {}) {
 
         const historyUserLabel = isScreenAnalysis ? `[Screen analysis] ${text}` : text;
         pushConversationTurn(historyUserLabel, finalText);
-        providerSyncedTurns[provider] = conversationHistory.length;
+        const unseen = conversationHistory.findIndex(turn => turn.external && !turnsBefore.has(turn));
+        providerSyncedTurns[provider] = unseen === -1 ? conversationHistory.length : unseen;
         healthTracker.recordSuccess(provider);
         emitHealth();
 
@@ -429,7 +442,9 @@ function createCliSessionManager(deps = {}) {
                     ? await loadContextFolderFn(resolvedContextFolder)
                     : null;
 
-            const folderContext = activeContextBundle && activeContextBundle.mode !== 'empty' ? activeContextBundle : null;
+            // The CLI session searches the folder for each question, so the prompt may say so
+            const folderContext =
+                activeContextBundle && activeContextBundle.mode !== 'empty' ? { ...activeContextBundle, excerptsAttached: true } : null;
             const systemPrompt = buildSystemPromptFn(profile, customPrompt, googleSearchEnabled, responseLanguage, folderContext);
             const sessionFolderName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             sessionDir = path.join(resolveConfigDir(), 'cli-sessions', sessionFolderName);
@@ -532,7 +547,10 @@ function createCliSessionManager(deps = {}) {
             providerSyncedTurns = { claude: 0, gemini: 0 };
             turnQueue = Promise.resolve();
 
-            initializeNewSession(profile, customPrompt);
+            // In a mixed session the Live connection may already own the session record
+            if (options.startsSession !== false) {
+                initializeNewSession(profile, customPrompt);
+            }
             isCliActive = true;
             initializationController = null;
 
@@ -755,6 +773,7 @@ function createCliSessionManager(deps = {}) {
         processCliAudio,
         sendCliText,
         sendCliImage,
+        addExternalTurn,
         suggestCliContinuation,
         switchCliProvider,
         getActiveCliProvider,

@@ -4,16 +4,23 @@ const os = require('os');
 
 const { sanitizeCustomPresets } = require('./utils/presets');
 const { createSecretStore } = require('./utils/secret-store');
+const { sanitizeKeys } = require('./utils/api-keys');
+const { DEFAULT_MIXED_ROUTES, normalizeMixedRoutes } = require('./utils/routing');
+const { DEFAULT_GEMINI_MODEL, DEFAULT_GEMINI_LIVE_MODEL, PREVIOUS_GEMINI_LIVE_MODEL } = require('./utils/gemini-models');
 const { getDataUsage: measureDataUsage, clearDataCategory: clearDataCategoryOnDisk, pruneOldSessions } = require('./utils/data-usage');
 
 const CONFIG_VERSION = 1;
+// Raised when saved Gemini model defaults have to be replaced once
+const GEMINI_DEFAULTS_VERSION = 2;
 
 // Default values
 const DEFAULT_CONFIG = {
     configVersion: CONFIG_VERSION,
     onboarded: false,
     layout: 'normal',
-    geminiLiveModel: 'gemini-3.1-flash-live-preview',
+    geminiLiveModel: DEFAULT_GEMINI_LIVE_MODEL,
+    geminiModel: DEFAULT_GEMINI_MODEL,
+    geminiDefaultsVersion: GEMINI_DEFAULTS_VERSION,
     groqModel: 'qwen/qwen3.6-27b',
     groqImageModel: 'qwen/qwen3.6-27b',
     disableGroqThinking: true,
@@ -22,11 +29,15 @@ const DEFAULT_CONFIG = {
 const DEFAULT_CREDENTIALS = {
     apiKey: '',
     groqApiKey: '',
+    // Backup keys, one per line (a single string, so it is encrypted like any other key)
+    backupApiKeys: '',
+    backupGroqApiKeys: '',
 };
 
 const DEFAULT_PREFERENCES = {
     customPrompt: '',
     providerMode: 'cli',
+    mixedRoutes: DEFAULT_MIXED_ROUTES,
     selectedProfile: 'interview',
     customPresets: [],
     historyRetentionDays: 0,
@@ -163,6 +174,20 @@ function migrateCredentials() {
     return { migrated: writeJsonFileAtomic(credentialsPath, encrypted) };
 }
 
+// Moves profiles that still carry the old default Live model to the current one. Runs once,
+// so a model the user picks later is never overwritten.
+function migrateGeminiDefaults() {
+    const saved = readJsonFile(getConfigPath(), null);
+    if (!saved || saved.geminiDefaultsVersion >= GEMINI_DEFAULTS_VERSION) {
+        return false;
+    }
+    if (saved.geminiLiveModel === PREVIOUS_GEMINI_LIVE_MODEL) {
+        saved.geminiLiveModel = DEFAULT_GEMINI_LIVE_MODEL;
+    }
+    saved.geminiDefaultsVersion = GEMINI_DEFAULTS_VERSION;
+    return writeJsonFile(getConfigPath(), saved);
+}
+
 // Helper to write JSON file safely
 function writeJsonFile(filePath, data) {
     try {
@@ -228,6 +253,8 @@ function initializeStorage() {
         }
     }
 
+    migrateGeminiDefaults();
+
     try {
         const result = migrateCredentials();
         if (result.migrated) {
@@ -290,6 +317,30 @@ function setGroqApiKey(groqApiKey) {
     return setCredentials({ groqApiKey });
 }
 
+const KEY_FIELDS = {
+    gemini: { primary: 'apiKey', backup: 'backupApiKeys' },
+    groq: { primary: 'groqApiKey', backup: 'backupGroqApiKeys' },
+};
+
+function getBackupKeys(provider) {
+    const fields = KEY_FIELDS[provider];
+    if (!fields) return [];
+    return sanitizeKeys(String(getCredentials()[fields.backup] || '').split('\n'));
+}
+
+function setBackupKeys(provider, keys) {
+    const fields = KEY_FIELDS[provider];
+    if (!fields) return false;
+    return setCredentials({ [fields.backup]: sanitizeKeys(keys).join('\n') });
+}
+
+/** Every usable key of a provider, the main one first. */
+function getProviderKeys(provider) {
+    const fields = KEY_FIELDS[provider];
+    if (!fields) return [];
+    return sanitizeKeys([getCredentials()[fields.primary], ...getBackupKeys(provider)]);
+}
+
 // ============ PREFERENCES ============
 
 function getPreferences() {
@@ -308,12 +359,16 @@ function getPreferences() {
     preferences.whisperModel = legacyWhisperModels[preferences.whisperModel] || preferences.whisperModel;
     preferences.cliGeminiModel = legacyGeminiCliModels[preferences.cliGeminiModel] || preferences.cliGeminiModel;
     preferences.customPresets = sanitizeCustomPresets(preferences.customPresets);
+    preferences.mixedRoutes = normalizeMixedRoutes(preferences.mixedRoutes);
     return preferences;
 }
 
 function normalizePreferenceValue(key, value) {
     if (key === 'customPresets') {
         return sanitizeCustomPresets(value);
+    }
+    if (key === 'mixedRoutes') {
+        return normalizeMixedRoutes(value);
     }
     if (key === 'speechVocabulary') {
         return String(value ?? '')
@@ -417,38 +472,6 @@ function getTodayLimits() {
     return newEntry;
 }
 
-function incrementLimitCount(model) {
-    const limits = getLimits();
-    const today = getTodayDateString();
-
-    // Find or create today's entry
-    let todayEntry = limits.data.find(entry => entry.date === today);
-
-    if (!todayEntry) {
-        // Clean old entries and create new one
-        limits.data = [];
-        todayEntry = {
-            date: today,
-            flash: { count: 0 },
-            flashLite: { count: 0 },
-        };
-        limits.data.push(todayEntry);
-    } else {
-        // Clean old entries, keep only today
-        limits.data = limits.data.filter(entry => entry.date === today);
-    }
-
-    // Increment the appropriate model count
-    if (model === 'gemini-2.5-flash') {
-        todayEntry.flash.count++;
-    } else if (model === 'gemini-2.5-flash-lite') {
-        todayEntry.flashLite.count++;
-    }
-
-    setLimits(limits);
-    return todayEntry;
-}
-
 function incrementCharUsage(provider, model, charCount) {
     getTodayLimits();
 
@@ -462,20 +485,6 @@ function incrementCharUsage(provider, model, charCount) {
     }
 
     return todayEntry;
-}
-
-function getAvailableModel() {
-    const todayLimits = getTodayLimits();
-
-    // RPD limits: flash = 20, flash-lite = 20
-    // After both exhausted, fall back to flash (for paid API users)
-    if (todayLimits.flash.count < 20) {
-        return 'gemini-2.5-flash';
-    } else if (todayLimits.flashLite.count < 20) {
-        return 'gemini-2.5-flash-lite';
-    }
-
-    return 'gemini-2.5-flash'; // Default to flash for paid API users
 }
 
 function getModelForToday() {
@@ -639,6 +648,9 @@ module.exports = {
     setApiKey,
     getGroqApiKey,
     setGroqApiKey,
+    getBackupKeys,
+    setBackupKeys,
+    getProviderKeys,
 
     // Preferences
     getPreferences,
@@ -653,8 +665,6 @@ module.exports = {
     getLimits,
     setLimits,
     getTodayLimits,
-    incrementLimitCount,
-    getAvailableModel,
     incrementCharUsage,
     getModelForToday,
 

@@ -23,6 +23,8 @@ const REQUIRED_API = [
     'initializeCli',
     'initializeLocal',
     'initializeGemini',
+    'initializeMixed',
+    'listGeminiModels',
     'storage',
     'presets',
     'theme',
@@ -216,6 +218,107 @@ test('a transcript line can be edited in the message box before it is sent', { t
             `${APP}.shadowRoot.querySelector('assistant-view').shadowRoot.activeElement && ${APP}.shadowRoot.querySelector('assistant-view').shadowRoot.activeElement.id`
         );
         assert.equal(focused, 'textInput');
+    } finally {
+        await app.stop();
+    }
+});
+
+test('the Gemini models for a personal API key can be chosen on Home', { timeout: 120000 }, async () => {
+    // A profile saved by 0.11.0 still holds the old default Live model
+    const app = await startApp({
+        seed: { 'config.json': { configVersion: 1, onboarded: true, layout: 'normal', geminiLiveModel: 'gemini-3.1-flash-live-preview' } },
+    });
+    try {
+        const view = `${APP}.shadowRoot.querySelector('main-view')`;
+        await waitFor(() => app.evaluate(`!!(${APP} && ${view})`), { label: 'the Home screen' });
+        const config = () => app.evaluate('cheatingDaddy.storage.getConfig()');
+        assert.equal((await config()).geminiLiveModel, 'gemini-3.8-live', 'the old default is replaced');
+
+        await app.evaluate(`(() => { const mv = ${view}; mv._mode = 'byok'; mv.requestUpdate(); })()`);
+        const select = `${view}.shadowRoot.querySelector('[data-field="screen"] select')`;
+        await waitFor(() => app.evaluate(`!!${select}`), { label: 'the model list' });
+        assert.equal(await app.evaluate(`${select}.value`), 'gemini-3.8-flash');
+
+        const choose = value => app.evaluate(`(() => { const s = ${select}; s.value = '${value}'; s.dispatchEvent(new Event('change')); })()`);
+        await choose('gemini-3.5-flash-lite');
+        await waitFor(async () => (await config()).geminiModel === 'gemini-3.5-flash-lite', { label: 'the choice to be saved' });
+
+        // Any other model id can be typed in
+        await choose('__custom__');
+        const input = `${view}.shadowRoot.querySelector('[data-field="screen"] input')`;
+        await waitFor(() => app.evaluate(`!!${input}`), { label: 'the custom field' });
+        await app.evaluate(`(() => { const i = ${input}; i.value = 'gemini-9-test'; i.dispatchEvent(new Event('input')); })()`);
+        await waitFor(async () => (await config()).geminiModel === 'gemini-9-test', { label: 'the custom id to be saved' });
+
+        // Without a key the model list explains what is missing instead of calling Google
+        const listing = await app.evaluate('cheatingDaddy.listGeminiModels()');
+        assert.equal(listing.success, false);
+        assert.deepEqual(app.consoleErrors, [], app.consoleErrors.join('\n'));
+    } finally {
+        await app.stop();
+    }
+});
+
+test('the mode switch offers a mixed mode and backup keys are saved encrypted', { timeout: 120000 }, async () => {
+    const app = await startApp({ seed: { 'config.json': { configVersion: 1, onboarded: true, layout: 'normal' } } });
+    try {
+        const view = `${APP}.shadowRoot.querySelector('main-view')`;
+        const find = selector => `${view}.shadowRoot.querySelector('${selector}')`;
+        await waitFor(() => app.evaluate(`!!(${APP} && ${view} && ${find('[data-mode="mixed"]')})`), { label: 'the mode switch' });
+        const prefs = () => app.evaluate('cheatingDaddy.storage.getPreferences()');
+
+        await app.evaluate(`${find('[data-mode="mixed"]')}.click()`);
+        await waitFor(async () => (await prefs()).providerMode === 'mixed', { label: 'the mode to be saved' });
+        await waitFor(() => app.evaluate(`!!${find('[data-route="screen"] select')}`), { label: 'the routes' });
+        const values = await app.evaluate(`[...${view}.shadowRoot.querySelectorAll('[data-route] select')].map(select => select.value)`);
+        assert.deepEqual(values, ['byok', 'cli', 'cli']);
+
+        await app.evaluate(
+            `(() => { const s = ${find('[data-route="screen"] select')}; s.value = 'byok'; s.dispatchEvent(new Event('change')); })()`
+        );
+        await waitFor(async () => (await prefs()).mixedRoutes.screen === 'byok', { label: 'the route to be saved' });
+
+        // Add two backup keys, type into them and remove the first
+        const rows = `${view}.shadowRoot.querySelectorAll('[data-backups="gemini"] .key-row')`;
+        const add = find('[data-backups="gemini"] .key-add');
+        await app.evaluate(`${add}.click()`);
+        await waitFor(() => app.evaluate(`${rows}.length === 1`), { label: 'the first key field' });
+        await app.evaluate(`${add}.click()`);
+        await waitFor(() => app.evaluate(`${rows}.length === 2`), { label: 'the second key field' });
+        await app.evaluate(
+            `[...${rows}].forEach((row, i) => { const input = row.querySelector('input'); input.value = 'backup-secret-' + (i + 1); input.dispatchEvent(new Event('input')); })`
+        );
+        await waitFor(() => app.evaluate(`cheatingDaddy.storage.getBackupKeys('gemini').then(keys => keys.length === 2)`), {
+            label: 'both keys to be saved',
+        });
+        assert.ok(!fs.readFileSync(path.join(app.configDir, 'credentials.json'), 'utf8').includes('backup-secret'));
+
+        await app.evaluate(`${rows}[0].querySelector('.key-remove').click()`);
+        await waitFor(() => app.evaluate(`cheatingDaddy.storage.getBackupKeys('gemini').then(keys => keys.join() === 'backup-secret-2')`), {
+            label: 'the first key to be removed',
+        });
+        assert.equal(await app.evaluate(`${rows}[0].querySelector('input').value`), 'backup-secret-2');
+
+        // Every mode renders
+        for (const mode of ['cli', 'byok', 'local', 'mixed']) {
+            await app.evaluate(`${find(`[data-mode="${mode}"]`)}.click()`);
+            await waitFor(() => app.evaluate(`${find('.mode-tab.active')}.dataset.mode === '${mode}' && !!${find('.start-button')}`), {
+                label: `the ${mode} mode`,
+            });
+        }
+
+        // Two answers arriving at once stay apart
+        const responses = await app.evaluate(`(() => {
+            const a = ${APP};
+            a.responses = [];
+            a.addNewResponse('voice 1', 'live-1');
+            a.addNewResponse('screen 1', 'cli-1');
+            a.updateCurrentResponse('voice 2', 'live-1');
+            a.updateCurrentResponse('screen 2', 'cli-1');
+            return a.responses;
+        })()`);
+        assert.deepEqual(responses, ['voice 2', 'screen 2']);
+        assert.deepEqual(app.consoleErrors, [], app.consoleErrors.join('\n'));
     } finally {
         await app.stop();
     }

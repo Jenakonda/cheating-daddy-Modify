@@ -10,9 +10,11 @@ const { presets, dataApi, copyText, escapeHtml, sanitizeHtml, exportSessionMarkd
 const { isLinux, isMacOS } = capture;
 const {
     initializeGemini,
+    listGeminiModels,
     initializeLocal,
     cancelLocalInitialization,
     initializeCli,
+    initializeMixed,
     cancelCliInitialization,
     checkCliStatus,
     launchCliSetup,
@@ -45,9 +47,11 @@ const cheatingDaddy = {
 
     // Core functionality
     initializeGemini,
+    listGeminiModels,
     initializeLocal,
     cancelLocalInitialization,
     initializeCli,
+    initializeMixed,
     cancelCliInitialization,
     checkCliStatus,
     launchCliSetup,

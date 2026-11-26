@@ -260,6 +260,18 @@ const VOICE_TRANSCRIPTION_RULES = `**VOICE TRANSCRIPTION (STT) INPUT RULES:**
 - **Garbled wording:** if a message does not make sense as written, it was probably misheard. Before answering, work out which similar-sounding words (also from another language, or technical terms) would turn it into a normal, sensible question for this situation (for example, "скільки мегабайт ви витрабайте" most likely means "скільки мегабайт у терабайті"), and answer that question. Do not answer the garbled wording literally and do not invent your own experience, projects or workplace to fit it.
 - **Assumed question:** only when you had to reinterpret the wording, finish the response with one short extra line in the response language, in italics, that states the question you assumed, for example: *Припускаю, що питання: «Скільки мегабайт у терабайті?»*. When the question was clear, add nothing.`;
 
+// What the model is told about a folder that is too large to include in full. Only a provider that
+// searches the files for each question (excerptsAttached) may promise that more text will follow.
+function describeLargeFolder(folderContext) {
+    if (folderContext.mode !== 'rag') {
+        return '';
+    }
+    if (folderContext.excerptsAttached) {
+        return ' Additional matching excerpts from larger files are attached automatically per question.';
+    }
+    return ' The folder is too large to include in full: below are only its file names, with short opening excerpts where they fit. You cannot see the rest, so never invent what these files say; when they do not cover the question, answer from general knowledge.';
+}
+
 function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled = true, responseLanguage = 'auto', folderContext = null) {
     const sections = [promptParts.intro, '\n\n', promptParts.formatRequirements, '\n\n', VOICE_TRANSCRIPTION_RULES];
 
@@ -276,8 +288,7 @@ function buildSystemPrompt(promptParts, customPrompt = '', googleSearchEnabled =
     sections.push('\n\n', promptParts.content, '\n\nUser-provided context\n-----\n', customPrompt, '\n-----');
 
     if (folderContext && folderContext.inlineText) {
-        const ragNote =
-            folderContext.mode === 'rag' ? ' Additional matching excerpts from larger files are attached automatically per question.' : '';
+        const ragNote = describeLargeFolder(folderContext);
         sections.push(
             '\n\nReference materials from Context Folder (ground answers in these files when relevant; keep answers concise unless asked for details.',
             ragNote,
